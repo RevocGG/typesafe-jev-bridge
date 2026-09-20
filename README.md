@@ -158,29 +158,6 @@ confidence, and score levels.
 - Full guide: HTTP examples, 9Router setup, agent instructions, troubleshooting → [`typesafe-bridge/GUIDE.md`](typesafe-bridge/GUIDE.md)
 - Official TypeSafe docs → [docs.typesafe.ai](https://docs.typesafe.ai)
 
-## Ecosystem & similar projects
-
-Jev launched in September 2026 and the ecosystem is moving fast. As of today:
-
-- **This repo** — the first standalone, zero-dependency **OpenAI-compatible bridge**
-  for Jev (chat/completions + responses + SSE), with CLI/audit/autofix tooling and
-  9Router integration.
-- [**LiteLLM TypeSafe pass-through**](https://docs.litellm.ai/docs/pass_through/typesafe) —
-  forwards `/typesafe/…` paths to the native System One API (no chat-completions
-  translation); also adds a JEV auto-router for model selection.
-- [**githubnext/localjev**](https://github.com/githubnext/localjev) and
-  **razorback16/openjev** — the *opposite* direction: local Jev-*compatible*
-  servers running open-weights models behind a `/v1/systemone` endpoint.
-
-If you maintain a similar bridge, open an issue/PR and we'll cross-link.
-
-## Publishing note (repo settings)
-
-Suggested GitHub settings for maximum discoverability —
-**Repository name:** `typesafe-jev-bridge` ·
-**Description:** `Use the TypeSafe Jev decision model (System One) anywhere: zero-dependency OpenAI-compatible bridge for 9Router, Claude Code, Cursor, Cline & any OpenAI SDK. Typed yes/no, choice & score judgments via CLI or HTTP.` ·
-**Topics:** `typesafe` `jev` `system-one` `openai-compatible` `decision-model` `llm` `ai-router` `bridge` `proxy` `claude-code` `cursor` `cline` `9router`
-
 ## License
 
 [MIT](LICENSE) © 2026 RevocGG

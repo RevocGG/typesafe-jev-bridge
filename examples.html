@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Real test runs — typesafe-jev-bridge</title>
+<style>
+  :root {
+    --bg: #0f1420; --card: #171e2e; --card2: #1c2438; --text: #e6ebf5;
+    --muted: #93a0b8; --accent: #7c5cff; --green: #2ecc71; --red: #ff5c5c;
+    --yellow: #f1c40f; --border: #2a3450; --term: #0b0f18;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Tahoma, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 32px 16px; line-height: 1.7; }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 4px; }
+  h2 { font-size: 1.2rem; color: var(--accent); margin-top: 40px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .sub { color: var(--muted); font-size: .95rem; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; margin: 14px 0; }
+  .badge { display: inline-block; padding: 3px 12px; border-radius: 999px; font-size: .8rem; font-weight: 700; margin-left: 6px; }
+  .pass { background: rgba(46,204,113,.15); color: var(--green); border: 1px solid var(--green); }
+  .warn { background: rgba(241,196,15,.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .info { background: rgba(124,92,255,.15); color: var(--accent); border: 1px solid var(--accent); }
+  .fail { background: rgba(255,92,92,.15); color: var(--red); border: 1px solid var(--red); }
+  code { background: #232c44; padding: 2px 7px; border-radius: 6px; font-size: .85em; }
+  pre { background: var(--term); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: .87rem; line-height: 1.65; margin: 10px 0; }
+  pre .cmd { color: #7ee787; }
+  pre .ok { color: #7ee787; }
+  pre .warnline { color: #f1c40f; }
+  pre .dim { color: #93a0b8; }
+  pre .out { color: #e6ebf5; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .vcard { background: var(--card2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-align: center; }
+  .vcard .num { font-size: 1.8rem; font-weight: 800; }
+  .vcard .lbl { color: var(--muted); font-size: .85rem; }
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--border); padding: 7px 10px; text-align: left; }
+  th { background: var(--card2); color: var(--accent); }
+  .note { color: var(--muted); font-size: .88rem; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>🧪 Real test runs</h1>
+<p class="sub">Every output below is a <b>verbatim copy</b> from the actual test session of this repo
+(Sep 20, 2026) against the live TypeSafe API (<code>jev-latest</code>) — nothing is mocked or retyped.
+The suite is <code>typesafe-bridge/test-all.cjs</code>, shipped with this repo.</p>
+
+<h2>1) Full suite — direct bridge, no 9Router</h2>
+<div class="card">
+<pre><span class="cmd">$ cd typesafe-bridge &amp;&amp; node test-all.cjs --skip-9router</span>
+
+<span class="out">== 1. Bridge health &amp; models ==</span>
+  <span class="ok">✓ GET /health returns ok</span>
+  <span class="ok">✓ health reports env key loaded</span>
+  <span class="ok">✓ GET /v1/models lists typesafe/jev-latest</span>
+
+<span class="out">== 2. chat/completions with explicit questions map ==</span>
+  <span class="ok">✓ HTTP 200</span>
+  <span class="ok">✓ choice answered under same id</span>
+  <span class="ok">✓ noul answered under same id</span>
+  <span class="ok">✓ usage reported</span>
+  <span class="ok">✓ text rendering contains answers</span>
+
+<span class="out">== 3. chat/completions with JSON-spec inference (choice) ==</span>
+  <span class="ok">✓ HTTP 200</span>
+  <span class="ok">✓ answer id is 'department'</span>
+  <span class="ok">✓ raw typesafe answers present</span>
+
+<span class="out">== 4. chat/completions yes/no inference (noul) ==</span>
+  <span class="ok">✓ HTTP 200</span>
+  <span class="ok">✓ noul probability &gt; 0.5 for urgent text</span>
+
+<span class="out">== 5. responses API (non-stream + stream) ==</span>
+  <span class="ok">✓ HTTP 200</span>
+  <span class="ok">✓ object=response, status=completed</span>
+  <span class="ok">✓ output_text present</span>
+  <span class="ok">✓ stream HTTP 200 with event-stream</span>
+  <span class="ok">✓ stream contains output_text.delta</span>
+  <span class="ok">✓ stream ends with response.completed</span>
+
+<span class="out">== 6. error handling ==</span>
+  <span class="ok">✓ unknown route → 404</span>
+  <span class="ok">✓ empty messages → 400</span>
+
+<span class="out">== 7. ask-jev.cjs CLI ==</span>
+  <span class="ok">✓ file noul runs &amp; answers yes-ish</span>
+  <span class="ok">✓ file choice returns an option</span>
+  <span class="ok">✓ stdin score runs</span>
+  <span class="ok">✓ --help shows usage</span>
+
+<span class="out">===== RESULT: 25 passed, 0 failed =====</span></pre>
+<p class="note"><span class="badge pass">25 / 25 PASS</span> All routes of the bridge work standalone — health, models, chat/completions with explicit &amp; inferred questions, responses API with SSE streaming, error handling, and the CLI.</p>
+</div>
+
+<h2>2) Same suite — through 9Router</h2>
+<div class="card">
+<pre><span class="cmd">$ node test-all.cjs</span>   <span class="dim"># ROUTER_9_API_KEY set — full suite runs</span>
+
+<span class="out">== 8. through 9Router (:20128) ==</span>
+  <span class="ok">✓ 9Router /v1/responses → HTTP 200</span>
+  <span class="ok">✓ 9Router responses returns text</span>
+  <span class="ok">✓ 9Router /v1/chat/completions → HTTP 200</span>
+  <span class="ok">✓ 9Router chat returns answer text</span>
+
+<span class="out">===== RESULT: 29 passed, 0 failed =====</span></pre>
+<p class="note"><span class="badge pass">29 / 29 PASS</span> Sections 1–7 re-ran green, plus section 8: requests sent to <code>localhost:20128</code> were routed through the Jev combo to the bridge and returned real typed answers — both the Responses API and chat/completions.</p>
+</div>
+
+<h2>3) Security hardening — judged by Jev, fixed, then verified live</h2>
+<div class="card">
+<p>We asked Jev (typed <code>choice</code>/<code>noul</code> questions over the actual source files):</p>
+<pre><span class="out">primary_risk_bridge: browser_csrf (confidence 0.73)
+  no_serious_risk: 0.04 · secret_forwarding: 0.14 · browser_csrf: 0.82 ← verdict</span>
+
+<span class="out">is_default_redaction_off_a_problem: 0.78  → yes, redaction must be default-on</span></pre>
+<p>Both verdicts were implemented the same day (loopback <code>Host</code>/<code>Origin</code> guards in <code>bridge.js</code>, default-on secret masking in the CLI) and re-verified:</p>
+<pre><span class="cmd">$ curl -H "Host: evil.example.com" http://127.0.0.1:8399/health        -o /dev/null -w "%{http_code}"</span>
+<span class="fail">403</span>
+<span class="cmd">$ curl -H "Origin: https://evil.example.com" -X POST …/v1/chat/completions …</span>
+<span class="fail">403</span>
+<span class="cmd">$ curl -H "Origin: http://localhost:3000"  -X POST …/v1/chat/completions …</span>
+<span class="ok">200</span>
+<span class="cmd">$ echo "api_key = sk-proj-abcdefghij1234567890" | node ask-jev.cjs --q "Is this urgent?"</span>
+<span class="warnline">⚠ masked 1 potential secret(s) (--redact):
+  line 2: api_key = sk-p…[REDACTED]</span>
+<span class="out">Is this urgent?: 0.23
+  -&gt; NO (confident)</span></pre>
+<div class="grid">
+  <div class="vcard"><div class="num" style="color:var(--red)">0.82</div><div class="lbl">Jev's verdict: browser CSRF risk</div></div>
+  <div class="vcard"><div class="num" style="color:var(--yellow)">0.78</div><div class="lbl">Jev's verdict: mask secrets by default</div></div>
+  <div class="vcard"><div class="num" style="color:var(--green)">403</div><div class="lbl">Evil Host/Origin now rejected</div></div>
+  <div class="vcard"><div class="num" style="color:var(--green)">29/29</div><div class="lbl">Suite still green after the fixes</div></div>
+</div>
+<p class="note">Exactly what this tool does for your code: typed judgment → action → re-test.</p>
+</div>
+
+<h2>4) The judge → fix → re-judge loop, running for real</h2>
+<div class="card">
+<pre><span class="cmd">$ node autofix.cjs</span>   <span class="dim"># dry-run: judges every file, plans fixes, writes nothing</span>
+
+<span class="out">  [dry-run] would write 372 lines, then re-judge</span>
+<span class="out">..CODEBUFF.md: has_setup_gaps noul=0.84 (needs ≤ 0.60)</span>
+<span class="dim">  (model bzl/claude-haiku-4.5 failed: … [402] Insufficient credits)</span>
+<span class="dim">  (model bzl/claude-sonnet-4.6 failed: … [402] Insufficient credits)</span>
+<span class="dim">  (model bzl/gpt-5.4 failed: … [402] Insufficient credits)</span>
+<span class="ok">  (fell back to openrouter/nvidia/nemotron-3-ultra-550b-a55b:free)</span>
+<span class="out">  [dry-run] would write 57 lines, then re-judge</span></pre>
+<p class="note"><span class="badge info">REAL FAILOVER</span> The paid fix models returned 402; the fallback chain rotated automatically to a free model and still produced a usable fix plan. Dry-run by default, backups on <code>--apply</code>.</p>
+</div>
+
+<h2>5) What Jev actually returns (live CLI output)</h2>
+<div class="card">
+<pre><span class="cmd">$ node ask-jev.cjs --text "Customer: I was charged twice for my September
+    subscription. I want the duplicate $29 charge refunded today." \
+    --q "Which team should handle this?" --type choice \
+    --criteria "billing=Payment or subscription issues,technical=Bugs or integration problems,sales=Pricing or account questions"</span>
+<span class="out">Which team should handle this?: billing (confidence 1)</span>
+<span class="dim">tokens: 352 in / 44 out</span>
+
+<span class="cmd">$ node ask-jev.cjs --text "Customer: Stripe fails 3 days, losing sales, help ASAP." \
+    --q "Which team should handle this?" --type choice \
+    --criteria "billing=…,technical=…,sales=…"</span>
+<span class="out">Which team should handle this?: technical (confidence 0.29)</span>
+<span class="warnline">  !! low confidence (&lt; 0.55) — check probabilities:</span>
+<span class="out">     billing: 0.47
+     sales: 0
+     technical: 0.53</span>
+<span class="dim">tokens: 360 in / 44 out</span>   <span class="dim"># exit code 3 — scripts can react</span>
+
+<span class="cmd">$ echo "You people are useless, this is the third time I'm writing. Fix it NOW." \
+    | node ask-jev.cjs --q "How angry is the customer?" --type score \
+    --criteria "Calm, Frustrated, Very angry"</span>
+<span class="out">How angry is the customer?: 2 (confidence 1)
+   0: Calm
+   1: Frustrated
+   2: Very angry</span>
+<span class="dim">tokens: 324 in / 23 out</span></pre>
+<p class="note">Note the second answer: on a genuinely ambiguous ticket Jev refuses to fake certainty (≈ 50/50 between billing and technical) and the CLI exits with code <code>3</code> so your pipeline can route it to a human. <span class="badge warn">calibrated, not confident</span></p>
+</div>
+
+<h2>Run it yourself</h2>
+<div class="card">
+<pre><span class="dim"># once:</span> <span class="cmd">echo "TYPESAFE_API_KEY=ts_live_…" &gt; typesafe-bridge/.env</span>
+<span class="dim"># terminal 1:</span> <span class="cmd">cd typesafe-bridge &amp;&amp; node bridge.js</span>
+<span class="dim"># terminal 2:</span> <span class="cmd">node test-all.cjs</span>            <span class="dim"># full suite (adds the 9Router section if configured)</span>
+<span class="cmd">node test-all.cjs --skip-9router</span> <span class="dim"># bridge-only suite</span></pre>
+<p class="note">Full guide: <a href="typesafe-bridge/GUIDE.md">typesafe-bridge/GUIDE.md</a> · Repo home: <a href="https://github.com/RevocGG/typesafe-jev-bridge">README</a></p>
+</div>
+
+<p class="note">The raw TypeSafe response is always attached to the <code>typesafe</code> field of every reply — numbers on this page are exactly what the API returned, unedited. Built with <a href="https://github.com/RevocGG/typesafe-jev-bridge">typesafe-jev-bridge</a>.</p>
+
+</div>
+</body>
+</html>

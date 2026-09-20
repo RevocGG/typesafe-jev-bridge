@@ -1,0 +1,20 @@
+# ── Secrets — never commit ─────────────────────────────────────────────
+.env
+typesafe-bridge/.env
+
+# ── Local virtualenvs, logs, caches ────────────────────────────────────
+.venv/
+typesafe-bridge/.venv/
+__pycache__/
+node_modules/
+nohup.out
+*.log
+typesafe-bridge/bridge.log
+
+# ── Private local AI-agent state (judgments, session data, etc.) ───────
+.freebuff/
+.agents/skills/
+
+# ── Tool outputs you probably don't want public ────────────────────────
+typesafe-bridge/answers*.json
+*.bak-autofix

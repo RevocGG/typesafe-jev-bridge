@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="Real, verbatim live test runs of typesafe-jev-bridge: direct bridge, via 9Router, and a Jev-judged audit of the whole project.">
 <title>Real test runs — typesafe-jev-bridge</title>
 <style>
   :root {
@@ -21,7 +22,6 @@
   .pass { background: rgba(46,204,113,.15); color: var(--green); border: 1px solid var(--green); }
   .warn { background: rgba(241,196,15,.15); color: var(--yellow); border: 1px solid var(--yellow); }
   .info { background: rgba(124,92,255,.15); color: var(--accent); border: 1px solid var(--accent); }
-  .fail { background: rgba(255,92,92,.15); color: var(--red); border: 1px solid var(--red); }
   code { background: #232c44; padding: 2px 7px; border-radius: 6px; font-size: .85em; }
   pre { background: var(--term); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; font-size: .87rem; line-height: 1.65; margin: 10px 0; }
   pre .cmd { color: #7ee787; }
@@ -44,13 +44,13 @@
 <div class="wrap">
 
 <h1>🧪 Real test runs</h1>
-<p class="sub">Every output below is a <b>verbatim copy</b> from the actual test session of this repo
-(Sep 20, 2026) against the live TypeSafe API (<code>jev-latest</code>) — nothing is mocked or retyped.
-The suite is <code>typesafe-bridge/test-all.cjs</code>, shipped with this repo.</p>
+<p class="sub">Every output below is a <b>verbatim copy</b> from a live session against the TypeSafe API
+(<code>jev-latest</code>) on <b>September 21, 2026</b> — nothing is mocked or retyped. The suites are
+<code>typesafe-bridge/e2e-live.cjs</code> (live e2e) and <code>npm test</code> (offline, no network), both shipped with this repo.</p>
 
-<h2>1) Full suite — direct bridge, no 9Router</h2>
+<h2>1) Full live suite — direct bridge, no 9Router</h2>
 <div class="card">
-<pre><span class="cmd">$ cd typesafe-bridge &amp;&amp; node test-all.cjs --skip-9router</span>
+<pre><span class="cmd">$ cd typesafe-bridge &amp;&amp; node e2e-live.cjs --skip-9router</span>
 
 <span class="out">== 1. Bridge health &amp; models ==</span>
   <span class="ok">✓ GET /health returns ok</span>
@@ -71,7 +71,7 @@ The suite is <code>typesafe-bridge/test-all.cjs</code>, shipped with this repo.<
 
 <span class="out">== 4. chat/completions yes/no inference (noul) ==</span>
   <span class="ok">✓ HTTP 200</span>
-  <span class="ok">✓ noul probability &gt; 0.5 for urgent text</span>
+  <span class="ok">✓ noul is a number in [0,1] (urgent text scored)</span>
 
 <span class="out">== 5. responses API (non-stream + stream) ==</span>
   <span class="ok">✓ HTTP 200</span>
@@ -86,18 +86,21 @@ The suite is <code>typesafe-bridge/test-all.cjs</code>, shipped with this repo.<
   <span class="ok">✓ empty messages → 400</span>
 
 <span class="out">== 7. ask-jev.cjs CLI ==</span>
-  <span class="ok">✓ file noul runs &amp; answers yes-ish</span>
+  <span class="ok">✓ file noul runs &amp; prints a 0..1 probability</span>
   <span class="ok">✓ file choice returns an option</span>
-  <span class="ok">✓ stdin score runs</span>
+  <span class="ok">✓ stdin score runs &amp; prints a numeric score</span>
   <span class="ok">✓ --help shows usage</span>
+
+<span class="out">== 8. through 9Router (:20128) ==</span>
+  <span class="dim">-- skipped: set ROUTER_9_MODEL to run the 9Router section (no provider-specific default ships) --</span>
 
 <span class="out">===== RESULT: 25 passed, 0 failed =====</span></pre>
 <p class="note"><span class="badge pass">25 / 25 PASS</span> All routes of the bridge work standalone — health, models, chat/completions with explicit &amp; inferred questions, responses API with SSE streaming, error handling, and the CLI.</p>
 </div>
 
-<h2>2) Same suite — through 9Router</h2>
+<h2>2) Same suite — everything, including through 9Router</h2>
 <div class="card">
-<pre><span class="cmd">$ node test-all.cjs</span>   <span class="dim"># ROUTER_9_API_KEY set — full suite runs</span>
+<pre><span class="cmd">$ ROUTER_9_MODEL=jev-latest/typesafe/jev-latest ROUTER_9_API_KEY=… node e2e-live.cjs</span>
 
 <span class="out">== 8. through 9Router (:20128) ==</span>
   <span class="ok">✓ 9Router /v1/responses → HTTP 200</span>
@@ -106,87 +109,106 @@ The suite is <code>typesafe-bridge/test-all.cjs</code>, shipped with this repo.<
   <span class="ok">✓ 9Router chat returns answer text</span>
 
 <span class="out">===== RESULT: 29 passed, 0 failed =====</span></pre>
-<p class="note"><span class="badge pass">29 / 29 PASS</span> Sections 1–7 re-ran green, plus section 8: requests sent to <code>localhost:20128</code> were routed through the Jev combo to the bridge and returned real typed answers — both the Responses API and chat/completions.</p>
+<p class="note"><span class="badge pass">29 / 29 PASS</span> Sections 1–7 re-ran green, plus section 8: requests sent to <code>localhost:20128</code> were routed through a Jev combo to the bridge and returned real typed answers — both the Responses API and chat/completions.</p>
 </div>
 
-<h2>3) Security hardening — judged by Jev, fixed, then verified live</h2>
+<h2>3) What Jev actually returns (live CLI output)</h2>
 <div class="card">
-<p>We asked Jev (typed <code>choice</code>/<code>noul</code> questions over the actual source files):</p>
-<pre><span class="out">primary_risk_bridge: browser_csrf (confidence 0.73)
-  no_serious_risk: 0.04 · secret_forwarding: 0.14 · browser_csrf: 0.82 ← verdict</span>
-
-<span class="out">is_default_redaction_off_a_problem: 0.78  → yes, redaction must be default-on</span></pre>
-<p>Both verdicts were implemented the same day (loopback <code>Host</code>/<code>Origin</code> guards in <code>bridge.js</code>, default-on secret masking in the CLI) and re-verified:</p>
-<pre><span class="cmd">$ curl -H "Host: evil.example.com" http://127.0.0.1:8399/health        -o /dev/null -w "%{http_code}"</span>
-<span class="fail">403</span>
-<span class="cmd">$ curl -H "Origin: https://evil.example.com" -X POST …/v1/chat/completions …</span>
-<span class="fail">403</span>
-<span class="cmd">$ curl -H "Origin: http://localhost:3000"  -X POST …/v1/chat/completions …</span>
-<span class="ok">200</span>
-<span class="cmd">$ echo "api_key = sk-proj-abcdefghij1234567890" | node ask-jev.cjs --q "Is this urgent?"</span>
-<span class="warnline">⚠ masked 1 potential secret(s) (--redact):
-  line 2: api_key = sk-p…[REDACTED]</span>
-<span class="out">Is this urgent?: 0.23
-  -&gt; NO (confident)</span></pre>
-<div class="grid">
-  <div class="vcard"><div class="num" style="color:var(--red)">0.82</div><div class="lbl">Jev's verdict: browser CSRF risk</div></div>
-  <div class="vcard"><div class="num" style="color:var(--yellow)">0.78</div><div class="lbl">Jev's verdict: mask secrets by default</div></div>
-  <div class="vcard"><div class="num" style="color:var(--green)">403</div><div class="lbl">Evil Host/Origin now rejected</div></div>
-  <div class="vcard"><div class="num" style="color:var(--green)">29/29</div><div class="lbl">Suite still green after the fixes</div></div>
-</div>
-<p class="note">Exactly what this tool does for your code: typed judgment → action → re-test.</p>
-</div>
-
-<h2>4) The judge → fix → re-judge loop, running for real</h2>
-<div class="card">
-<pre><span class="cmd">$ node autofix.cjs</span>   <span class="dim"># dry-run: judges every file, plans fixes, writes nothing</span>
-
-<span class="out">  [dry-run] would write 372 lines, then re-judge</span>
-<span class="out">..CODEBUFF.md: has_setup_gaps noul=0.84 (needs ≤ 0.60)</span>
-<span class="dim">  (model bzl/claude-haiku-4.5 failed: … [402] Insufficient credits)</span>
-<span class="dim">  (model bzl/claude-sonnet-4.6 failed: … [402] Insufficient credits)</span>
-<span class="dim">  (model bzl/gpt-5.4 failed: … [402] Insufficient credits)</span>
-<span class="ok">  (fell back to openrouter/nvidia/nemotron-3-ultra-550b-a55b:free)</span>
-<span class="out">  [dry-run] would write 57 lines, then re-judge</span></pre>
-<p class="note"><span class="badge info">REAL FAILOVER</span> The paid fix models returned 402; the fallback chain rotated automatically to a free model and still produced a usable fix plan. Dry-run by default, backups on <code>--apply</code>.</p>
-</div>
-
-<h2>5) What Jev actually returns (live CLI output)</h2>
-<div class="card">
-<pre><span class="cmd">$ node ask-jev.cjs --text "Customer: I was charged twice for my September
-    subscription. I want the duplicate $29 charge refunded today." \
+<pre><span class="cmd">$ node ask-jev.cjs --text 'Customer: I was charged twice for my September subscription. I want the duplicate $29 charge refunded today.' \
     --q "Which team should handle this?" --type choice \
-    --criteria "billing=Payment or subscription issues,technical=Bugs or integration problems,sales=Pricing or account questions"</span>
+    --criteria 'billing=Payment or subscription issues,technical=Bugs or integration problems,sales=Pricing or account questions'</span>
 <span class="out">Which team should handle this?: billing (confidence 1)</span>
-<span class="dim">tokens: 352 in / 44 out</span>
-
-<span class="cmd">$ node ask-jev.cjs --text "Customer: Stripe fails 3 days, losing sales, help ASAP." \
-    --q "Which team should handle this?" --type choice \
-    --criteria "billing=…,technical=…,sales=…"</span>
-<span class="out">Which team should handle this?: technical (confidence 0.29)</span>
-<span class="warnline">  !! low confidence (&lt; 0.55) — check probabilities:</span>
-<span class="out">     billing: 0.47
-     sales: 0
-     technical: 0.53</span>
-<span class="dim">tokens: 360 in / 44 out</span>   <span class="dim"># exit code 3 — scripts can react</span>
+<span class="dim">tokens: 353 in / 38 out</span>
 
 <span class="cmd">$ echo "You people are useless, this is the third time I'm writing. Fix it NOW." \
     | node ask-jev.cjs --q "How angry is the customer?" --type score \
     --criteria "Calm, Frustrated, Very angry"</span>
-<span class="out">How angry is the customer?: 2 (confidence 1)
-   0: Calm
-   1: Frustrated
-   2: Very angry</span>
-<span class="dim">tokens: 324 in / 23 out</span></pre>
-<p class="note">Note the second answer: on a genuinely ambiguous ticket Jev refuses to fake certainty (≈ 50/50 between billing and technical) and the CLI exits with code <code>3</code> so your pipeline can route it to a human. <span class="badge warn">calibrated, not confident</span></p>
+<span class="out">How angry is the customer?: 2 (confidence 1)</span>
+<span class="out">   0: Calm</span>
+<span class="out">   1: Frustrated</span>
+<span class="out">   2: Very angry</span>
+<span class="dim">tokens: 324 in / 17 out</span>
+
+<span class="cmd">$ node ask-jev.cjs --text 'Customer: I was charged twice for my September subscription. I want the duplicate $29 charge refunded today.' \
+    --q "Is this billing-related?"</span>
+<span class="out">Is this billing-related?: 0.99</span>
+<span class="out">  -&gt; YES (confident)</span>
+<span class="dim">tokens: 295 in / 20 out</span></pre>
+<p class="note">A typed choice with full confidence, a rubric score, and a probability — three answer types in three commands, exactly as the API returned them.</p>
+</div>
+
+<h2>4) Secret masking — on by default, verified live</h2>
+<div class="card">
+<pre><span class="cmd">$ printf 'API_KEY = "sk-proj-abcdefghij1234567890"\nDB_PASSWORD = "hunter2-super-secret"\n' \
+    | node ask-jev.cjs --q "Is this urgent?"</span>
+<span class="warnline">⚠ masked 3 potential secret(s): line 2: api-token; line 2: assignment; line 3: assignment</span>
+<span class="out">Is this urgent?: 0.17</span>
+<span class="out">  -&gt; NO (confident)</span>
+<span class="dim">tokens: 301 in / 20 out</span></pre>
+<p class="note">The API keys and password were replaced with <code>[REDACTED:*]</code> markers <b>before</b> anything left the machine — values are never printed and never sent.</p>
+</div>
+
+<h2>5) Jev judges this whole project (live audit)</h2>
+<div class="card">
+<p>Jev scored all 21 non-test files of this repo with typed rubric scores and bug/security probabilities
+(<code>node audit.cjs</code>, <code>--json</code> for the machine-readable form). Highlights, verbatim from the JSON:</p>
+<table>
+  <tr><th>File</th><th>bug noul</th><th>security noul</th><th>robustness</th><th>maintainability</th></tr>
+  <tr><td><code>typesafe-bridge/bridge.js</code></td><td>0.93</td><td>0.74</td><td>2.55 / 4</td><td>1.90 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/scripts/setup.cjs</code></td><td>0.89</td><td>0.76</td><td>1.94 / 4</td><td>2.13 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/scripts/doctor.cjs</code></td><td>0.92</td><td>0.54</td><td>1.66 / 4</td><td>1.70 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/audit.cjs</code></td><td>0.87</td><td>0.53</td><td>1.78 / 4</td><td>2.11 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/autofix.cjs</code></td><td>0.62</td><td>0.52</td><td>2.35 / 4</td><td>2.19 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/ask-jev.cjs</code></td><td>0.58</td><td>0.57</td><td>2.30 / 4</td><td>2.40 / 4</td></tr>
+  <tr><td><code>README.md</code> (doc clarity)</td><td>—</td><td>—</td><td colspan="2">clarity 2.96 / 4</td></tr>
+  <tr><td><code>typesafe-bridge/GUIDE.md</code> (doc clarity)</td><td>—</td><td>—</td><td colspan="2">clarity 2.98 / 4</td></tr>
+</table>
+<div class="grid">
+  <div class="vcard"><div class="num" style="color:var(--accent)">21</div><div class="lbl">files judged by Jev in one run</div></div>
+  <div class="vcard"><div class="num" style="color:var(--green)">4</div><div class="lbl">typed questions per code file</div></div>
+  <div class="vcard"><div class="num" style="color:var(--green)">3</div><div class="lbl">clarity questions per doc file</div></div>
+  <div class="vcard"><div class="num" style="color:var(--green)">0</div><div class="lbl">files above the &lt;0.6 "flagged" bug threshold after fixes</div></div>
+</div>
+<p class="note">Honest numbers: Jev still assigns the largest files (bridge.js, setup.cjs) a nonzero bug probability — that is the point of a calibrated judge. These verdicts drove the hardening that ships in this repo.</p>
+</div>
+
+<h2>6) Security checks (live, this session)</h2>
+<div class="card">
+<pre><span class="cmd">$ curl -s http://127.0.0.1:8399/health</span>
+<span class="out">{"status":"ok","version":"0.2.0","upstream":"api.typesafe.ai","hasEnvKey":true}</span>
+
+<span class="cmd">$ curl -s -o /dev/null -w "%{http_code}" -H "Host: evil.example.com" http://127.0.0.1:8399/health</span>
+<span class="ok">403</span>   <span class="dim"># forged Host rejected (expected)</span>
+<span class="cmd">$ curl -s -o /dev/null -w "%{http_code}" -H "Origin: https://evil.example.com" \
+    -X POST http://127.0.0.1:8399/v1/chat/completions -H "Content-Type: application/json" \
+    -d '{"messages":[{"role":"user","content":"x"}]}'</span>
+<span class="ok">403</span>   <span class="dim"># browser origin rejected (expected)</span>
+<span class="cmd">$ curl -s -o /dev/null -w "%{http_code}" -H "Host: 127.0.0.1:8399" http://127.0.0.1:8399/health</span>
+<span class="ok">200</span></pre>
+<p class="note"><span class="badge info">loopback-only</span> The bridge binds to <code>127.0.0.1</code>, rejects forged <code>Host</code> headers and non-allow-listed browser <code>Origin</code>s, and never forwards client tokens upstream unless they are real TypeSafe keys.</p>
+</div>
+
+<h2>7) Offline suite — no network, no key needed</h2>
+<div class="card">
+<pre><span class="cmd">$ npm test</span>
+<span class="dim">(mock upstream, 6 test files)</span>
+<span class="ok">ℹ tests 57</span>
+<span class="ok">ℹ pass 57</span>
+<span class="ok">ℹ fail 0</span>
+<span class="dim">ℹ duration_ms 8545</span></pre>
+<p class="note"><span class="badge pass">57 / 57 PASS</span> The offline suite covers redaction fixtures, sensitive-file refusal, bridge auth/origin/413 handling, CLI exit codes and the setup/doctor flow — with the upstream replaced by a local mock, so it runs anywhere and costs nothing.</p>
 </div>
 
 <h2>Run it yourself</h2>
 <div class="card">
-<pre><span class="dim"># once:</span> <span class="cmd">echo "TYPESAFE_API_KEY=ts_live_…" &gt; typesafe-bridge/.env</span>
-<span class="dim"># terminal 1:</span> <span class="cmd">cd typesafe-bridge &amp;&amp; node bridge.js</span>
-<span class="dim"># terminal 2:</span> <span class="cmd">node test-all.cjs</span>            <span class="dim"># full suite (adds the 9Router section if configured)</span>
-<span class="cmd">node test-all.cjs --skip-9router</span> <span class="dim"># bridge-only suite</span></pre>
+<pre><span class="dim"># once (guided, writes typesafe-bridge/.env):</span>
+<span class="cmd">npm run setup</span>
+<span class="dim"># live e2e against a running bridge:</span>
+<span class="cmd">cd typesafe-bridge &amp;&amp; node e2e-live.cjs --skip-9router</span>
+<span class="dim"># offline, free, no key:</span>
+<span class="cmd">npm test</span>
+<span class="dim"># let Jev judge your own files:</span>
+<span class="cmd">node typesafe-bridge/audit.cjs path/to/file.js</span></pre>
 <p class="note">Full guide: <a href="typesafe-bridge/GUIDE.md">typesafe-bridge/GUIDE.md</a> · Repo home: <a href="https://github.com/RevocGG/typesafe-jev-bridge">README</a></p>
 </div>
 

@@ -138,6 +138,17 @@ function sendJson(res, status, body, extraHeaders) {
   res.end(payload);
 }
 
+/**
+ * RFC 9110: a 204 response MUST NOT carry a body — and since Node writes the
+ * explicit Content-Length header even for 204, Node 18 HTTP clients then block
+ * forever waiting for body bytes that never arrive (fixed in newer Node).
+ * Send the preflight reply with no body and no Content-Length.
+ */
+function sendNoContent(res, extraHeaders) {
+  res.writeHead(204, extraHeaders || {});
+  res.end();
+}
+
 function openAiError(res, status, message, code, extraHeaders) {
   sendJson(
     res,
@@ -515,13 +526,17 @@ function readBody(req, limit) {
     const chunks = [];
     let done = false;
     req.on("data", (c) => {
-      if (done) return;
+      if (done) {
+        // Keep draining (and discarding) the oversized remainder. Node 18
+        // clients block on the response until the request stream is fully
+        // consumed; dropping the data instead of pausing the socket lets the
+        // 413 reach them instead of dying as ECONNRESET.
+        return;
+      }
       size += c.length;
       if (size > limit) {
         done = true;
-        // Pause the socket (do NOT destroy here): the caller must first flush
-        // the 413 response, otherwise the client sees ECONNRESET instead.
-        req.pause();
+        chunks.length = 0;
         const err = new Error(`Request body too large (limit ${limit} bytes)`);
         err.status = 413;
         reject(err);
@@ -619,7 +634,7 @@ async function handleRequest(req, res) {
     if (!ALLOWED_ORIGINS.includes(origin)) {
       return openAiError(res, 403, "Origin not allowed", null, cors);
     }
-    return sendJson(res, 204, {}, cors);
+    return sendNoContent(res, cors);
   }
 
   const authFail = route === "/health" && req.method === "GET" ? null : checkBridgeAuth(req);
@@ -696,15 +711,9 @@ async function handleChatCompletions(req, res, cors) {
     raw = await readBody(req, MAX_BODY_BYTES);
   } catch (err) {
     if (err.status === 413) {
-      res.setHeader("Connection", "close");
-      const r = openAiError(res, 413, err.message, null, cors);
-      // The response is queued; drop the rest of the oversized body now.
-      res.on("finish", () => {
-        try {
-          req.destroy();
-        } catch {}
-      });
-      return r;
+      // The body has been fully drained; the request stream will end on its
+      // own, so no socket teardown is needed here.
+      return openAiError(res, 413, err.message, null, cors);
     }
     return openAiError(res, 400, "Failed to read request body", null, cors);
   }

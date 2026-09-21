@@ -6,6 +6,8 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-21
+
 ### Added (post-0.2.0)
 - One-command guided setup (`npm run setup`) with preflight checks, hidden API-key
   input, optional Python/9Router detection, background start (`--background`),

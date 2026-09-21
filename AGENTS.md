@@ -20,7 +20,7 @@ as a judge/arbiter for code, documents, and strategies.
 ## Prerequisites
 
 - **Node.js 18+** (the CLI tools use global `fetch`).
-- A **TypeSafe API key** from `console.typesafe.ai/settings/keys`, placed in
+- A **TypeSafe API key** from `console.typesafe.ai/keys`, placed in
   `typesafe-bridge/.env` as `TYPESAFE_API_KEY=apikey_…`.
 - macOS/Linux users need `curl` for the health check; on Windows use any HTTP
   client or PowerShell's `Invoke-WebRequest`.

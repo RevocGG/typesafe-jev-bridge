@@ -87,7 +87,7 @@ process), terminates it gracefully and removes the pid file.
 
 ### The manual path
 
-1. Get a TypeSafe API key at `console.typesafe.ai/settings/keys`.
+1. Get a TypeSafe API key at `console.typesafe.ai/keys`.
 2. Create `typesafe-bridge/.env` (copy `../.env.example`):
    ```
    TYPESAFE_API_KEY=apikey_…your key…

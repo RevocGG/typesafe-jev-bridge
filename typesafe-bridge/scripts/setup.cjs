@@ -270,9 +270,9 @@ function ensureKey() {
   } else if (ARGS.yes && !process.stdin.isTTY) {
     return Promise.reject(new Error("no API key available. Set TYPESAFE_API_KEY, use --key-stdin, or run interactively."));
   } else {
-    failHint = "get a key at console.typesafe.ai/settings/keys";
+    failHint = "get a key at console.typesafe.ai/keys";
     process.stdout.write(
-      "\nA TypeSafe API key is required (get one at console.typesafe.ai/settings/keys).\n" +
+      "\nA TypeSafe API key is required (get one at console.typesafe.ai/keys).\n" +
       "It will be written to typesafe-bridge/.env and is never displayed or logged.\n"
     );
     readPromise = ui.readHidden("Paste your key (input hidden): ");
@@ -282,7 +282,7 @@ function ensureKey() {
     key = String(key || "").trim();
     var problem = keyProblem(key);
     if (problem) {
-      return Promise.reject(new Error("that key is not usable: " + problem + ". Get one at console.typesafe.ai/settings/keys"));
+      return Promise.reject(new Error("that key is not usable: " + problem + ". Get one at console.typesafe.ai/keys"));
     }
     var hint = keyChecks.keyHint(key);
     if (!ARGS.dryRun) {

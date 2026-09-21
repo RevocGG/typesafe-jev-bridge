@@ -1,6 +1,6 @@
 {
   "name": "typesafe-jev-bridge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Use the TypeSafe Jev decision model (System One) anywhere: zero-dependency OpenAI-compatible bridge for 9Router, Claude Code, Cursor, Cline & any OpenAI SDK. Typed yes/no, choice & score judgments via CLI or HTTP.",
   "license": "MIT",
   "author": "RevocGG",

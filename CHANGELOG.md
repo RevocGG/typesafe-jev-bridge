@@ -9,6 +9,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 ## [0.2.1] - 2026-09-21
 
 ### Fixed
+- **CI (Node 18) hung forever on CORS preflight:** the preflight reply was a
+  `204` with `Content-Length: 2`; Node 18 HTTP clients then wait forever for
+  body bytes that are never sent (fixed in newer Node). Preflight is now a
+  bodyless `204` with no `Content-Length`, as RFC 9110 requires.
+- **413 responses died as `ECONNRESET` on Node 18:** the oversized body is now
+  drained and discarded instead of pausing the socket, so the 413 reaches the
+  client on every Node version.
+- `npm test` used a directory argument for `node --test`, which needs Node
+  21+/22+; it now enumerates test files explicitly and works on Node 18/20.
 - `assertInsideRoot` treated Windows drive-letter paths (`C:/…`) as plain
   relative folder names on POSIX, silently resolving them inside the repo
   root; foreign-absolute paths are now rejected on every platform.

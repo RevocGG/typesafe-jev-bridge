@@ -74,12 +74,68 @@ function isSensitivePath(p) {
 }
 
 /**
+ * True when `p` is a filesystem-absolute path *for the current platform*.
+ * Windows drive-letter paths ("C:/…", "C:\\…") and UNC paths are absolute on
+ * win32 but NOT on POSIX, where they are just odd relative folder names —
+ * a Windows absolute path passed on Linux must still be rejected, not
+ * silently resolved to a harmless-looking directory inside the root.
+ */
+function isPlatformAbsolute(p) {
+  const s = String(p);
+  if (path.isAbsolute(s)) return true;
+  if (process.platform === "win32") return false; // path.isAbsolute already covered drive/UNC
+  // POSIX: a drive-letter or UNC path is foreign and must be treated as absolute.
+  return /^(?:[A-Za-z]:[\\/]|\\\\)/.test(s);
+}
+
+/**
  * Refuse any path that resolves outside `root` (after symlink resolution).
  * @throws Error with code EOUTSIDEROOT
  */
 function assertInsideRoot(p, root) {
   const rootAbs = fs.realpathSync(path.resolve(root));
-  const target = path.resolve(rootAbs, String(p));
+  const raw = String(p);
+  // An absolute path (per EITHER platform's rules) is never resolved relative
+  // to the root: if it is not inside root verbatim, it is refused outright.
+  if (isPlatformAbsolute(raw) || path.posix.isAbsolute(raw) || path.win32.isAbsolute(raw)) {
+    const candidates = [path.resolve(raw), path.posix.resolve("/", raw), path.win32.resolve("C:\\", raw)];
+    let inside = false;
+    for (const cand of candidates) {
+      // Absolute paths are checked LEXICALLY (with the deepest existing
+      // ancestor for the non-existent tail) — an absolute path must never be
+      // re-rooted onto `root`, which is exactly the POSIX drive-letter bug.
+      let probe = cand;
+      let real;
+      for (;;) {
+        try {
+          real = fs.realpathSync(probe);
+          break;
+        } catch {
+          const parent = path.dirname(probe);
+          if (parent === probe) {
+            real = probe;
+            break;
+          }
+          probe = parent;
+        }
+      }
+      const a = real.toLowerCase() + path.sep;
+      const b = rootAbs.toLowerCase() + path.sep;
+      if (real.toLowerCase() === rootAbs.toLowerCase() || a.startsWith(b)) {
+        inside = true;
+        break;
+      }
+    }
+    if (!inside) {
+      const err = new Error(
+        `refusing to touch "${raw}" — it resolves outside the repo root (${rootAbs})`
+      );
+      err.code = "EOUTSIDEROOT";
+      throw err;
+    }
+    return path.resolve(rootAbs, raw);
+  }
+  const target = path.resolve(rootAbs, raw);
   let real;
   try {
     real = fs.realpathSync(target);

@@ -6,6 +6,15 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-21
+
+### Fixed
+- `assertInsideRoot` treated Windows drive-letter paths (`C:/…`) as plain
+  relative folder names on POSIX, silently resolving them inside the repo
+  root; foreign-absolute paths are now rejected on every platform.
+- The offline CLI tests created a fixture `.env` themselves, so the suite
+  passes on a fresh clone / CI runner without a developer's real `.env`.
+
 ### Changed
 - **Default: no client-key passthrough.** The bridge always uses the key from
   `TYPESAFE_API_KEY`; client Bearer tokens are never relayed upstream unless

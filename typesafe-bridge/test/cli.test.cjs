@@ -11,10 +11,25 @@ const { startBridge, stopBridge } = require("./helpers/bridge-process.cjs");
 const ASK = path.join(__dirname, "..", "ask-jev.cjs");
 const AUDIT = path.join(__dirname, "..", "audit.cjs");
 const AUTOFIX = path.join(__dirname, "..", "autofix.cjs");
-// The real .env lives at <repo>/typesafe-bridge/.env; node --test may run with
-// either the repo root or typesafe-bridge as cwd, so always pass an ABSOLUTE
-// path for sensitive-file refusal tests.
-const DOTENV = path.join(__dirname, "..", ".env");
+// Sensitive-file refusal tests need a REAL .env, but CI has none (it is
+// git-ignored). Create a temp .env INSIDE the bridge dir and clean it up, so
+// the tests pass on a fresh clone too. The bridge dir (not a temp dir) is
+// required because audit/autofix only accept paths inside the repo root.
+const DOTENV_DIR = path.join(__dirname, "..");
+const DOTENV = path.join(DOTENV_DIR, ".env");
+let createdDotenv = false;
+function ensureDotenvFixture() {
+  if (!fs.existsSync(DOTENV)) {
+    fs.writeFileSync(DOTENV, "TYPESAFE_API_KEY=apikey_fakefixturekey000000\n");
+    createdDotenv = true;
+  }
+}
+function cleanupDotenvFixture() {
+  if (createdDotenv) {
+    try { fs.rmSync(DOTENV, { force: true }); } catch { /* best effort */ }
+    createdDotenv = false;
+  }
+}
 // audit/autofix only accept explicit paths inside the repo root, so fixture
 // files for those tools must be created under the repo (git-ignored patterns
 // do not match "jev-audit*", and the tests clean up after themselves).
@@ -64,19 +79,29 @@ test("ask-jev --help exits 0 and documents flags", async () => {
 });
 
 test("ask-jev usage errors exit 2", async () => {
-  assert.strictEqual((await runAsk(["--bogus"])).status, 2);
-  assert.strictEqual((await runAsk(["--q", "x", "--type", "bogus"])).status, 2);
-  assert.strictEqual((await runAsk(["--q", "x", "--min-conf", "abc"])).status, 2);
-  assert.strictEqual((await runAsk(["--file", DOTENV, "--q", "x"])).status, 2); // sensitive (exists)
-  assert.strictEqual((await runAsk(["--q", "x", "--min-conf", "abc", "--text", "y"])).status, 2);
-  assert.strictEqual((await runAsk(["--text", "y"])).status, 2); // missing --q
+  ensureDotenvFixture();
+  try {
+    assert.strictEqual((await runAsk(["--bogus"])).status, 2);
+    assert.strictEqual((await runAsk(["--q", "x", "--type", "bogus"])).status, 2);
+    assert.strictEqual((await runAsk(["--q", "x", "--min-conf", "abc"])).status, 2);
+    assert.strictEqual((await runAsk(["--file", DOTENV, "--q", "x"])).status, 2); // sensitive (exists)
+    assert.strictEqual((await runAsk(["--q", "x", "--min-conf", "abc", "--text", "y"])).status, 2);
+    assert.strictEqual((await runAsk(["--text", "y"])).status, 2); // missing --q
+  } finally {
+    cleanupDotenvFixture();
+  }
 });
 
 test("ask-jev refuses sensitive files with a reason (no --allow-sensitive)", async () => {
-  const r = await runAsk(["--file", DOTENV, "--q", "x"]);
-  assert.strictEqual(r.status, 2);
-  assert.match(r.stderr, /refusing to read/);
-  assert.match(r.stderr, /sensitive file/);
+  ensureDotenvFixture();
+  try {
+    const r = await runAsk(["--file", DOTENV, "--q", "x"]);
+    assert.strictEqual(r.status, 2);
+    assert.match(r.stderr, /refusing to read/);
+    assert.match(r.stderr, /sensitive file/);
+  } finally {
+    cleanupDotenvFixture();
+  }
 });
 
 test("ask-jev requires --allow-remote for non-loopback --url", async () => {
@@ -164,8 +189,13 @@ test("audit flag parsing works in any order; missing file exits 2 (regression)",
       assert.ok(!r.stdout.includes("bridge.js"), "did not fall back to whole-repo audit");
 
       // explicit sensitive path is refused
-      const envAudit = await runAudit([DOTENV], { env: { TYPESAFE_BRIDGE_URL: bridge.base } });
-      assert.match(envAudit.stderr || envAudit.stdout, /refusing|sensitive/i);
+      ensureDotenvFixture();
+      try {
+        const envAudit = await runAudit([DOTENV], { env: { TYPESAFE_BRIDGE_URL: bridge.base } });
+        assert.match(envAudit.stderr || envAudit.stdout, /refusing|sensitive/i);
+      } finally {
+        cleanupDotenvFixture();
+      }
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }

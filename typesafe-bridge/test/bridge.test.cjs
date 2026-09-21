@@ -93,27 +93,51 @@ test("BRIDGE_TOKEN auth: exact match required, placeholder rejected, ts_ tokens 
     await up.close();
   }
 
-  // Separate bridge: client Bearer ts_live_... must be forwarded verbatim.
+  // Separate bridge: DEFAULT is NO passthrough — a client Bearer token is never
+  // relayed upstream; the env key is always used.
   const up2 = await startMockUpstream();
-  const bridge2 = await startBridge({ TYPESAFE_API_BASE: up2.url }); // no bridge token: we test upstream forwarding, not bridge auth
+  const bridge2 = await startBridge({ TYPESAFE_API_BASE: up2.url }); // no bridge token; passthrough off (default)
   try {
-    await chat(bridge2.base, {
+    const body = {
       model: "typesafe/jev-latest",
       messages: [{ role: "user", content: "s" }],
       questions: { a: { type: "noul", instructions: "urgent?" } },
-    }, { Authorization: "Bearer ts_live_clientkey123456" });
+    };
+    // Even a real-looking TypeSafe client key is NOT forwarded by default.
+    await chat(bridge2.base, body, { Authorization: "Bearer ts_live_clientkey123456" });
     assert.strictEqual(up2.requests.length, 1);
-    assert.strictEqual(up2.requests[0].auth, "Bearer ts_live_clientkey123456");
-    // A non-ts_ token is NOT forwarded; the env key is used instead.
-    await chat(bridge2.base, {
-      model: "typesafe/jev-latest",
-      messages: [{ role: "user", content: "s" }],
-      questions: { a: { type: "noul", instructions: "urgent?" } },
-    }, { Authorization: "Bearer sk-openai-client-key" });
+    assert.strictEqual(up2.requests[0].auth, "Bearer ts_test_fake_key_for_offline_tests", "default must use env key, not client token");
+    // …nor an apikey_-shaped one.
+    await chat(bridge2.base, body, { Authorization: "Bearer apikey_clientfake12345678" });
     assert.strictEqual(up2.requests[1].auth, "Bearer ts_test_fake_key_for_offline_tests");
   } finally {
     await stopBridge(bridge2);
     await up2.close();
+  }
+
+  // Opt-in bridge: BRIDGE_ALLOW_KEY_PASSTHROUGH=1 forwards TypeSafe-shaped
+  // client keys (apikey_… and legacy ts_live_/ts_test_) verbatim; anything
+  // else still falls back to the env key.
+  const up3 = await startMockUpstream();
+  const bridge3 = await startBridge({
+    TYPESAFE_API_BASE: up3.url,
+    BRIDGE_ALLOW_KEY_PASSTHROUGH: "1",
+  });
+  try {
+    const body = {
+      model: "typesafe/jev-latest",
+      messages: [{ role: "user", content: "s" }],
+      questions: { a: { type: "noul", instructions: "urgent?" } },
+    };
+    await chat(bridge3.base, body, { Authorization: "Bearer apikey_clientfake12345678" });
+    assert.strictEqual(up3.requests[0].auth, "Bearer apikey_clientfake12345678", "apikey_ client key must be relayed when passthrough=1");
+    await chat(bridge3.base, body, { Authorization: "Bearer ts_live_clientkey123456" });
+    assert.strictEqual(up3.requests[1].auth, "Bearer ts_live_clientkey123456", "legacy ts_live_ client key must be relayed when passthrough=1");
+    await chat(bridge3.base, body, { Authorization: "Bearer sk-not-a-typesafe-key" });
+    assert.strictEqual(up3.requests[2].auth, "Bearer ts_test_fake_key_for_offline_tests", "non-TypeSafe token must never be relayed");
+  } finally {
+    await stopBridge(bridge3);
+    await up3.close();
   }
 });
 

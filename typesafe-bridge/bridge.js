@@ -22,7 +22,9 @@
  *     `Authorization: Bearer <BRIDGE_TOKEN>` exactly (timing-safe compare).
  *     The placeholder is only accepted while BRIDGE_TOKEN is unset.
  *   - A client Bearer token is forwarded upstream ONLY if it matches
- *     ^ts_(live|test)_ — any other value is ignored (the env key is used).
+ *     Default OFF: the upstream key is always TYPESAFE_API_KEY (env or .env).
+ *     Set BRIDGE_ALLOW_KEY_PASSTHROUGH=1 to relay a client Bearer token, and
+ *     only when it matches ^(?:apikey_|ts_(?:live|test)_)….
  *
  * Security model (see README "Security model"):
  *   - Binds to 127.0.0.1 only. Non-loopback Host headers are rejected 403.
@@ -173,15 +175,27 @@ function checkBridgeAuth(req) {
 }
 
 /**
+ * Opt-in client-key passthrough. Default OFF: the upstream key is ALWAYS the
+ * one from TYPESAFE_API_KEY (env / .env). Set BRIDGE_ALLOW_KEY_PASSTHROUGH=1
+ * to forward a client Bearer token upstream, and even then only when it is a
+ * real TypeSafe key (apikey_… or legacy ts_live_/ts_test_).
+ */
+const ALLOW_KEY_PASSTHROUGH = process.env.BRIDGE_ALLOW_KEY_PASSTHROUGH === "1";
+const CLIENT_KEY_RE = /^(?:apikey_|ts_(?:live|test)_)[A-Za-z0-9_-]{8,}$/;
+
+/**
  * Resolve the upstream (TypeSafe) API key for this request.
- * Only real TypeSafe keys (ts_live_/ts_test_) are forwarded from the client.
+ * Default: the env/.env key. Client tokens are never relayed unless
+ * BRIDGE_ALLOW_KEY_PASSTHROUGH=1 (and even then only TypeSafe-shaped keys).
  */
 function resolveApiKey(req) {
-  const token = bearerToken(req);
   const envKey = process.env.TYPESAFE_API_KEY;
-  if (token && /^ts_(live|test)_/.test(token)) return token;
+  const token = bearerToken(req);
+  if (ALLOW_KEY_PASSTHROUGH && token && CLIENT_KEY_RE.test(token)) return token;
   if (token && token !== PLACEHOLDER_KEY) {
-    log("client token ignored (not a TypeSafe key) — using env key");
+    log(ALLOW_KEY_PASSTHROUGH
+      ? "client token ignored (not a TypeSafe key) — using env key"
+      : "client token not relayed (passthrough off) — using env key");
   }
   if (envKey) return envKey;
   return null;
@@ -670,7 +684,7 @@ async function handleChatCompletions(req, res, cors) {
     return openAiError(
       res,
       401,
-      `No TypeSafe API key. Set TYPESAFE_API_KEY (env or typesafe-bridge/.env), or pass your real ts_live_/ts_test_ key as the Bearer token.`,
+      `No TypeSafe API key. Set TYPESAFE_API_KEY (env or typesafe-bridge/.env), or set BRIDGE_ALLOW_KEY_PASSTHROUGH=1 to relay a TypeSafe client key.`,
       null,
       cors
     );
@@ -805,7 +819,7 @@ async function handleChatCompletions(req, res, cors) {
 async function handleResponses(req, res, cors) {
   const apiKey = resolveApiKey(req);
   if (!apiKey) {
-    return openAiError(res, 401, "No TypeSafe API key (set TYPESAFE_API_KEY or pass a ts_ Bearer token).", null, cors);
+    return openAiError(res, 401, "No TypeSafe API key (set TYPESAFE_API_KEY in env or typesafe-bridge/.env).", null, cors);
   }
 
   let raw;
@@ -966,7 +980,7 @@ server.listen(PORT, "127.0.0.1", () => {
   log(`typesafe-jev-bridge v${VERSION} listening on http://127.0.0.1:${PORT}`);
   log(`Routes: POST /v1/chat/completions, POST /v1/responses, GET /v1/models, GET /health`);
   log(`Upstream: ${UPSTREAM.protocol}//${UPSTREAM.hostname}:${UPSTREAM.port}${UPSTREAM.basePath}/v1/systemone`);
-  log(`Env key: ${process.env.TYPESAFE_API_KEY ? `set (from ${envInfo.from}${envInfo.encoding === "utf16le" ? ", .env was UTF-16LE — converted" : ""})` : "NOT set (pass a ts_live_/ts_test_ key as Bearer token)"}`);
+  log(`Env key: ${process.env.TYPESAFE_API_KEY ? `set (from ${envInfo.from}${envInfo.encoding === "utf16le" ? ", .env was UTF-16LE — converted" : ""})` : "NOT set"}${ALLOW_KEY_PASSTHROUGH ? ", client-key passthrough: ON" : ""}`);
   log(`Auth: ${BRIDGE_TOKEN ? "BRIDGE_TOKEN required" : "open (set BRIDGE_TOKEN to require a token)"}, redact=${BRIDGE_REDACT ? "on" : "off"}, origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "none (browser origins rejected)"}`);
 
   // ---- human-facing startup banner (plain when not a TTY / NO_COLOR) ------

@@ -63,6 +63,7 @@ async function startBridge(opts = {}) {
     TYPESAFE_API_KEY: opts.TYPESAFE_API_KEY || "ts_test_fake_key_for_offline_tests",
     BRIDGE_TOKEN: opts.BRIDGE_TOKEN || "",
     BRIDGE_ALLOWED_ORIGINS: opts.BRIDGE_ALLOWED_ORIGINS || "",
+    BRIDGE_ALLOW_KEY_PASSTHROUGH: opts.BRIDGE_ALLOW_KEY_PASSTHROUGH || "",
     BRIDGE_LOG_LEVEL: "error",
     TYPESAFE_API_BASE: opts.TYPESAFE_API_BASE || "",
     // never read the developer's real .env in tests

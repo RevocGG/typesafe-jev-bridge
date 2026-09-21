@@ -6,6 +6,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- **Default: no client-key passthrough.** The bridge always uses the key from
+  `TYPESAFE_API_KEY`; client Bearer tokens are never relayed upstream unless
+  `BRIDGE_ALLOW_KEY_PASSTHROUGH=1` is set (and then only TypeSafe-shaped keys:
+  `apikey_…` or legacy `ts_live_…`/`ts_test_…`).
+- **Key-shape checks are informational.** Shared `KEY_HINT_RE` in `lib/env.cjs`
+  accepts the dashboard's `apikey_…` format (and legacy `ts_live_…`/`ts_test_…`);
+  an unusual prefix is only a hint, never a failure or a ✗ in doctor/setup.
+  Hard errors are limited to empty keys, whitespace/quotes, or < 16 chars.
+- Secret redaction recognizes `apikey_…` tokens; docs use `apikey_…` examples.
+
 ## [0.2.0] - 2026-09-21
 
 ### Added (post-0.2.0)

@@ -13,6 +13,46 @@
  * Environment variables already set always win (never overwritten).
  */
 
+/**
+ * Informational key-shape hint — NEVER a gate.
+ *
+ * The TypeSafe dashboard issues keys in the `apikey_…` format; the older
+ * `ts_live_…` / `ts_test_…` formats are also valid. Use this regex only to
+ * decide whether to show a friendly hint — a non-match must never fail,
+ * exit non-zero, block startup or render as an error in doctor/setup.
+ * Hard errors are reserved for keys that are empty, contain whitespace or
+ * quotes, or are shorter than 16 characters (see `keyHardProblem`).
+ */
+const KEY_HINT_RE = /^(apikey_|ts_(live|test)_)[A-Za-z0-9_-]{8,}$/;
+
+/** Shortest length a real key can plausibly have. */
+const KEY_MIN_LENGTH = 16;
+
+/**
+ * Hard key problems — the ONLY reasons to reject a key outright.
+ * @param {string} key trimmed key
+ * @returns {string|null} human-readable reason, or null when the key is usable
+ */
+function keyHardProblem(key) {
+  const k = String(key == null ? "" : key).trim();
+  if (!k) return "key is empty";
+  if (/[\s"']/.test(k)) return "key contains whitespace or quotes";
+  if (k.length < KEY_MIN_LENGTH) return `key is too short (${k.length} chars, minimum ${KEY_MIN_LENGTH})`;
+  return null;
+}
+
+/**
+ * Informational hint for a key that does not match KEY_HINT_RE.
+ * Returns null for matching keys and for keys with a hard problem (those get
+ * their own error text); never used to reject anything.
+ */
+function keyHint(key) {
+  const k = String(key == null ? "" : key).trim();
+  if (keyHardProblem(k)) return null;
+  if (KEY_HINT_RE.test(k)) return null;
+  return "key has an unusual prefix — accepted (dashboard keys look like apikey_…)";
+}
+
 function decodeBuffer(buf) {
   // UTF-16LE BOM: FF FE
   if (buf.length >= 2 && buf[0] === 0xff && buf[1] === 0xfe) {
@@ -85,4 +125,4 @@ function loadEnvFile(file) {
   return { loaded, encoding };
 }
 
-module.exports = { parseEnvText, readEnvFile, loadEnvFile, decodeBuffer };
+module.exports = { parseEnvText, readEnvFile, loadEnvFile, decodeBuffer, KEY_HINT_RE, keyHardProblem, keyHint };

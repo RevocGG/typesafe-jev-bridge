@@ -8,9 +8,9 @@
  *     `new RegExp(re.source)`, which silently dropped the `i` flag before).
  *   - PEM private keys are redacted as a WHOLE block (body + END line). A
  *     missing END marker redacts to the end of the text.
- *   - Token formats with underscores (ghp_, github_pat_, ts_live_, sk_live_,
- *     npm_, hf_, glpat_, xapp_, AIza…, JWTs, Bearer headers, URL credentials)
- *     are recognized, in upper and lower case.
+ *   - Token formats with underscores (ghp_, github_pat_, apikey_, ts_live_,
+ *     sk_live_, npm_, hf_, glpat_, xapp_, AIza…, JWTs, Bearer headers, URL
+ *     credentials) are recognized, in upper and lower case.
  *   - Assignment-style secrets keep the KEY name visible (so Jev can still
  *     flag "hardcoded credential") but the VALUE is fully replaced — no
  *     prefix of the secret is ever kept.
@@ -22,7 +22,9 @@
 const PEM_RE = /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z0-9 ]*PRIVATE KEY-----|$)/g;
 
 // Token formats (case-insensitive so UPPERCASE .env values are caught too).
-const TOKEN_RE = /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|(?:sk|ts|npm|hf)_[A-Za-z0-9_]{10,}|sk-[A-Za-z0-9_-]{16,}|glpat-[A-Za-z0-9_-]{16,}|xapp-[A-Za-z0-9_-]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{30,}/gi;
+// apikey_ is the TypeSafe dashboard key format; ts_live_/ts_test_ are its
+// legacy-compatible formats — both are secrets and must be redacted.
+const TOKEN_RE = /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{16,}|github_pat_[A-Za-z0-9_]{16,}|apikey_[A-Za-z0-9_-]{16,}|(?:sk|ts|npm|hf)_[A-Za-z0-9_]{10,}|sk-[A-Za-z0-9_-]{16,}|glpat-[A-Za-z0-9_-]{16,}|xapp-[A-Za-z0-9_-]{16,}|xox[baprs]-[A-Za-z0-9-]{10,}|AIza[A-Za-z0-9_-]{30,}/gi;
 
 // JWTs (three dot-separated base64url segments; header always starts "eyJ").
 const JWT_RE = /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}/g;

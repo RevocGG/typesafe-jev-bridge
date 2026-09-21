@@ -19,12 +19,13 @@ const http = require("node:http");
 const net = require("node:net");
 const child = require("node:child_process");
 const ui = require("../lib/ui.cjs");
+const { keyHardProblem, keyHint } = require("../lib/env.cjs");
 
 const BRIDGE_DIR = path.join(__dirname, "..");
 const ROOT = path.join(BRIDGE_DIR, "..");
 const ENV_FILE = path.join(BRIDGE_DIR, ".env");
 const PID_FILE = path.join(BRIDGE_DIR, ".bridge.pid");
-const KEY_RE = /^ts_(live|test)_[A-Za-z0-9]+$/;
+// (key-shape checks moved to lib/env.cjs: KEY_HINT_RE / keyHardProblem / keyHint)
 
 function usage(code) {
   (code === 0 ? process.stdout : process.stderr).write(
@@ -122,11 +123,13 @@ async function main() {
     const m = /^TYPESAFE_API_KEY=(.*)$/m.exec(envText);
     const key = m ? m[1].trim() : "";
     if (!key) {
-      record("key shape valid", "fail", "TYPESAFE_API_KEY missing", "run `npm run setup`");
-    } else if (!KEY_RE.test(key)) {
-      record("key shape valid", "fail", "key does not match ts_live_…/ts_test_…", "get a key at console.typesafe.ai/settings/keys");
+      record("key usable", "fail", "TYPESAFE_API_KEY missing", "run `npm run setup`");
+    } else if (keyHardProblem(key)) {
+      record("key usable", "fail", keyHardProblem(key), "run `npm run setup` and re-enter the key");
     } else {
-      record("key shape valid", "ok", "ts_" + key.slice(8, 10) + "… (shape only, value never shown)");
+      const hint = keyHint(key);
+      // Shape is informational only — a non-matching prefix is a note, never a fail.
+      record("key usable", "ok", hint || `prefix ${key.slice(0, key.indexOf("_") + 1)}… (shape only, value never shown)`, hint || "");
     }
     if (process.platform !== "win32") {
       let mode = null;

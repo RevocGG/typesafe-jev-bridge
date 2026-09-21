@@ -43,14 +43,18 @@ var http = require("node:http");
 var net = require("node:net");
 var child = require("node:child_process");
 var ui = require("../lib/ui.cjs");
-
+var keyChecks = require("../lib/env.cjs");
+var KEY_HINT_RE = keyChecks.KEY_HINT_RE;
 var BRIDGE_DIR = path.join(__dirname, "..");
 var ROOT = path.join(BRIDGE_DIR, "..");
 var ENV_FILE = path.join(BRIDGE_DIR, ".env");
 var PID_FILE = path.join(BRIDGE_DIR, ".bridge.pid");
 var LOG_FILE = path.join(BRIDGE_DIR, "bridge.log");
-var KEY_RE = /^ts_(live|test)_[A-Za-z0-9]+$/;
 var PLACEHOLDER_KEY = "sk-typesafe-bridge";
+// Key-shape checking is shared with doctor via lib/env.cjs:
+//  - KEY_HINT_RE is an informational hint ONLY (never a gate).
+//  - Hard errors: empty / whitespace or quotes / shorter than 16 chars.
+// Dashboard keys look like apikey_…; legacy ts_live_/ts_test_ are accepted.
 
 function usage(code) {
   var out = code === 0 ? process.stdout : process.stderr;
@@ -95,6 +99,14 @@ function step(name, fn) {
   var stream = process.stderr;
   if (ARGS.dryRun) {
     stream.write(ui.dim("[dry-run] would run: " + name) + "\n");
+    // Still run the key step in dry-run: it only reports (never prompts,
+    // never fails on a missing key) so users learn about key problems early.
+    if (fn === ensureKey) {
+      return ensureKey().then(function (r) {
+        if (r && r.hint) stream.write(ui.dim("  note: " + r.hint) + "\n");
+        return r;
+      });
+    }
     return Promise.resolve();
   }
   stream.write(ui.dim(name + " ... ") + "\r");
@@ -230,14 +242,26 @@ function readKeyFromEnvFile() {
   } catch (e) { return null; }
 }
 
+function keyProblem(key) {
+  return keyChecks.keyHardProblem(key);
+}
+
 function ensureKey() {
   var existing = process.env.TYPESAFE_API_KEY || readKeyFromEnvFile();
-  if (existing && KEY_RE.test(existing)) {
-    process.stderr.write(ui.dim("API key: using existing " + (process.env.TYPESAFE_API_KEY ? "environment" : ".env") + " key (never displayed)") + "\n");
-    return Promise.resolve({ key: existing, from: process.env.TYPESAFE_API_KEY ? "environment" : ".env" });
+  if (existing && !keyProblem(existing)) {
+    var hint = keyChecks.keyHint(existing);
+    process.stderr.write(ui.dim("API key: using existing " + (process.env.TYPESAFE_API_KEY ? "environment" : ".env") + " key (never displayed)" + (hint ? " — " + hint : "")) + "\n");
+    return Promise.resolve({ key: existing, from: process.env.TYPESAFE_API_KEY ? "environment" : ".env", hint: hint });
   }
-  if (existing && !KEY_RE.test(existing)) {
-    process.stderr.write(ui.warn("existing key has an unexpected shape (expected ts_live_…/ts_test_…) — please re-enter it") + "\n");
+  if (existing && keyProblem(existing)) {
+    process.stderr.write(ui.warn("existing key is not usable: " + keyProblem(existing) + " — please re-enter it") + "\n");
+  }
+
+  // Dry-run never prompts and never fails on a missing key: it only reports.
+  if (ARGS.dryRun) {
+    if (existing) return Promise.resolve({ key: existing, from: process.env.TYPESAFE_API_KEY ? "environment" : ".env" });
+    process.stderr.write(ui.dim("[dry-run] no API key found yet — the real run would prompt (hidden input)\n") );
+    return Promise.resolve(null);
   }
 
   var readPromise;
@@ -246,7 +270,7 @@ function ensureKey() {
   } else if (ARGS.yes && !process.stdin.isTTY) {
     return Promise.reject(new Error("no API key available. Set TYPESAFE_API_KEY, use --key-stdin, or run interactively."));
   } else {
-    failHint = "get a key at console.typesafe.ai/settings/keys (starts with ts_live_ or ts_test_)";
+    failHint = "get a key at console.typesafe.ai/settings/keys";
     process.stdout.write(
       "\nA TypeSafe API key is required (get one at console.typesafe.ai/settings/keys).\n" +
       "It will be written to typesafe-bridge/.env and is never displayed or logged.\n"
@@ -256,9 +280,11 @@ function ensureKey() {
 
   return readPromise.then(function (key) {
     key = String(key || "").trim();
-    if (!KEY_RE.test(key)) {
-      return Promise.reject(new Error("that does not look like a TypeSafe key (expected ts_live_… or ts_test_…). Get one at console.typesafe.ai/settings/keys"));
+    var problem = keyProblem(key);
+    if (problem) {
+      return Promise.reject(new Error("that key is not usable: " + problem + ". Get one at console.typesafe.ai/settings/keys"));
     }
+    var hint = keyChecks.keyHint(key);
     if (!ARGS.dryRun) {
       // Never destroy an existing .env: back it up first (git-ignored).
       if (fs.existsSync(ENV_FILE)) {
@@ -275,7 +301,7 @@ function ensureKey() {
         process.stderr.write(ui.dim("note (Windows): file permissions are handled by your user profile ACLs; keep .env out of any sync/backup share") + "\n");
       }
     }
-    return { key: key, from: "setup" };
+    return { key: key, from: "setup", hint: hint };
   });
 }
 

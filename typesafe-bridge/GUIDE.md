@@ -90,7 +90,7 @@ process), terminates it gracefully and removes the pid file.
 1. Get a TypeSafe API key at `console.typesafe.ai/settings/keys`.
 2. Create `typesafe-bridge/.env` (copy `../.env.example`):
    ```
-   TYPESAFE_API_KEY=ts_live_…your key…
+   TYPESAFE_API_KEY=apikey_…your key…
    ```
    (or export `TYPESAFE_API_KEY` in your shell — both work)
 
@@ -181,7 +181,7 @@ works the same way, streaming included.
 cd typesafe-bridge
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install typesafe-sdk
-export TYPESAFE_API_KEY=ts_live_…
+export TYPESAFE_API_KEY=apikey_…
 python demo.py    # Run 1 uses the official SDK; Run 2 is optional (via 9Router)
 ```
 

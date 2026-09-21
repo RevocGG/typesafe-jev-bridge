@@ -64,7 +64,10 @@ function tempBridgeDir() {
   fs.mkdirSync(path.join(dir, "lib"), { recursive: true });
   fs.copyFileSync(SETUP, path.join(dir, "scripts", "setup.cjs"));
   fs.copyFileSync(DOCTOR, path.join(dir, "scripts", "doctor.cjs"));
-  fs.copyFileSync(path.join(__dirname, "..", "lib", "ui.cjs"), path.join(dir, "lib", "ui.cjs"));
+  for (const lib of ["ui.cjs", "env.cjs", "redact.cjs", "sensitive.cjs", "client.cjs", "fence.cjs", "questions.cjs", "targets.cjs"]) {
+    const src = path.join(__dirname, "..", "lib", lib);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dir, "lib", lib));
+  }
   fs.copyFileSync(BRIDGE_JS, path.join(dir, "bridge.js"));
   fs.writeFileSync(path.join(dir, "requirements.txt"), "typesafe-sdk>=0.1\n");
   return dir;
@@ -143,18 +146,33 @@ test("setup writes a UTF-8/LF .env, key never in output, idempotent second run",
   }
 });
 
-test("setup rejects a malformed key with a hint and writes nothing", async () => {
+test("setup rejects an unusable key (hard errors only) and writes nothing", async () => {
   const dir = tempBridgeDir();
   try {
     const r = await runCli(path.join(dir, "scripts", "setup.cjs"), ["--yes", "--key-stdin"], {
       cwd: dir,
-      input: "sk-not-a-typesafe-key\n",
+      input: "oops\n",
       env: { TYPESAFE_BRIDGE_PORT: "18499" },
     });
     assert.strictEqual(r.status, 1);
-    assert.match(r.stderr, /does not look like a TypeSafe key/);
+    assert.match(r.stderr, /not usable/);
     assert.ok(!fs.existsSync(path.join(dir, ".env")));
-    assert.ok(!r.stderr.includes("sk-not-a-typesafe-key"), "rejected value echoed back");
+    assert.ok(!r.stderr.includes("oops"), "rejected value echoed back");
+
+    // An unusual prefix with a valid body is ACCEPTED (hint only, never a gate).
+    // Dry-run + --key-stdin reports the hint without prompting and exits 0.
+    const dir2 = tempBridgeDir();
+    try {
+      const r2 = await runCli(path.join(dir2, "scripts", "setup.cjs"), ["--yes", "--key-stdin", "--dry-run"], {
+        cwd: dir2,
+        input: "sk_live_abcdefghijklmnopqrstuv\n",
+        env: { TYPESAFE_BRIDGE_PORT: "18499", TYPESAFE_API_KEY: "sk_live_abcdefghijklmnopqrstuv" },
+      });
+      assert.strictEqual(r2.status, 0, `unusual prefix must not fail: ${r2.stderr}`);
+      assert.match(r2.stderr, /unusual prefix/);
+    } finally {
+      rmRf(dir2);
+    }
   } finally {
     rmRf(dir);
   }
@@ -185,12 +203,19 @@ test("doctor exits 1 and names the problem when the key is missing or malformed"
     assert.strictEqual(r1.status, 1);
     assert.match(r1.stdout, /\.env present/);
 
-    // malformed key
+    // hard-problem key (too short — "oops" is 4 chars)
     fs.writeFileSync(path.join(dir, ".env"), "TYPESAFE_API_KEY=oops\n");
     const r2 = await runCli(path.join(dir, "scripts", "doctor.cjs"), [], { cwd: dir });
     assert.strictEqual(r2.status, 1);
-    assert.match(r2.stdout, /key shape valid/);
+    assert.match(r2.stdout, /key usable/);
+    assert.match(r2.stdout, /too short/);
     assert.ok(!r2.stdout.includes("oops"), "malformed value echoed");
+
+    // an unusual prefix is only a NOTE (ok line), never a fail
+    fs.writeFileSync(path.join(dir, ".env"), "TYPESAFE_API_KEY=sk_live_abcdefghijklmnopqrstuv\n");
+    const r2b = await runCli(path.join(dir, "scripts", "doctor.cjs"), [], { cwd: dir });
+    assert.match(r2b.stdout, /\[ok\] key usable/);
+    assert.match(r2b.stdout, /unusual prefix/);
 
     // --json works (the JSON object is printed after the checklist lines —
     // slice from the first line that opens the object to the end).

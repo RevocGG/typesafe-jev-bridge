@@ -12,6 +12,26 @@ test("redacts upper and lowercase .env assignment lines", () => {
   assert.ok(r.text.includes("[REDACTED"));
 });
 
+test("redacts apikey_ tokens (dashboard key format) in all common shapes", () => {
+  const fake = "apikey_2112fakeAbCdEfGhIjKlMnOp";
+  for (const t of [
+    `TYPESAFE_API_KEY=${fake}`,
+    `"api_key": "${fake}"`,
+    `Authorization: Bearer ${fake}`,
+    `UPPER: APIKEY_ABCDEFGHIJKLMNOPQ`,
+  ]) {
+    const r = redact(t);
+    assert.ok(!r.text.includes(fake), `leaked: ${t}`);
+    assert.ok(r.text.includes("[REDACTED"), `not replaced: ${t}`);
+  }
+});
+
+test("prose mentioning apikey_ without a key is not flagged", () => {
+  const r = redact("npm run setup   # asks for your apikey_… key\nsee the apikey_ section in the guide");
+  assert.strictEqual(r.findings.length, 0, JSON.stringify(r.findings));
+  assert.ok(r.text.includes("apikey_… key"));
+});
+
 test("redacts full PEM blocks including body and END line", () => {
   const pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEAfake\nmorebase64body\n-----END RSA PRIVATE KEY-----\nafter";
   const r = redact(pem);
@@ -31,6 +51,7 @@ test("redacts underscore-style tokens", () => {
     "ghp_abcdefghijklmnopqrstuvwx",
     "github_pat_ABCDEFGHIJKLMNOPQRS",
     "ts_live_abcdefghijklmnop",
+    "apikey_abcdefghijklmnop",
     "sk_live_abcdefghijklmnop",
     "npm_abcdefghijklmnop",
     "hf_abcdefghijklmnop",

@@ -4,13 +4,13 @@ TypeSafe Jev demo — two ways to call it once your API key is set.
 Setup (bash / macOS / Linux):
     python -m venv .venv && source .venv/bin/activate
     pip install -r requirements.txt
-    export TYPESAFE_API_KEY="ts_live_..."   # from console.typesafe.ai/settings/keys
+    export TYPESAFE_API_KEY="apikey_..."   # from console.typesafe.ai/settings/keys
     python demo.py
 
 Setup (Windows PowerShell):
     .\.venv\Scripts\Activate.ps1
     pip install -r requirements.txt
-    $env:TYPESAFE_API_KEY = "ts_live_..."   # from console.typesafe.ai/settings/keys
+    $env:TYPESAFE_API_KEY = "apikey_..."   # from console.typesafe.ai/settings/keys
     python demo.py
 
 Run 1 uses the official SDK directly (no 9Router needed): it sends an explicit

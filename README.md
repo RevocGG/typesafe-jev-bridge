@@ -195,13 +195,17 @@ live end-to-end suite with `node e2e-live.cjs`) in
 - **Origin allow-list.** Browser requests carrying an `Origin` header are
   rejected (403) unless the origin is listed in `BRIDGE_ALLOWED_ORIGINS`. Any
   page on any local dev server or `*.localhost` is *not* trusted by default.
+- **Your key stays put.** The bridge always calls TypeSafe with the key from
+  `TYPESAFE_API_KEY` (env or `typesafe-bridge/.env`). Client Bearer tokens are
+  **not** relayed upstream unless you explicitly opt in with
+  `BRIDGE_ALLOW_KEY_PASSTHROUGH=1` — and even then only TypeSafe-shaped keys
+  (`apikey_…` or legacy `ts_live_…`/`ts_test_…`) are forwarded.
 - **Optional shared token.** Set `BRIDGE_TOKEN=…` and clients must send
-  `Authorization: Bearer …` (constant-time compare). Only real `ts_live_`/`ts_test_`
-  keys are ever forwarded upstream; other client tokens are ignored.
+  `Authorization: Bearer …` (constant-time compare).
 - **Redaction.** The CLI masks secret-like values (`.env` style assignments,
-  PEM keys, `ghp_`/`sk_live_`/JWT/`AIza…` tokens, URL credentials) before
-  anything leaves your machine. Bridge-level redaction for router traffic is
-  opt-in via `BRIDGE_REDACT=1`.
+  PEM keys, `apikey_`/`ghp_`/`sk_live_`/JWT/`AIza…` tokens, URL credentials)
+  before anything leaves your machine. Bridge-level redaction for router
+  traffic is opt-in via `BRIDGE_REDACT=1`.
 - **What is NOT protected:** any *local process* that you run (or that runs with
   your user) can still call the bridge unless you set `BRIDGE_TOKEN`. The bridge
   is a localhost convenience service, not a multi-user sandbox.
@@ -241,13 +245,14 @@ confidence, and score levels. This repo's own agent notes live in
 
 | Variable | Used by | Default | Meaning |
 | --- | --- | --- | --- |
-| `TYPESAFE_API_KEY` | bridge, all CLIs | — (required) | Your `ts_live_`/`ts_test_` key; from env or `typesafe-bridge/.env` |
+| `TYPESAFE_API_KEY` | bridge, all CLIs | — (required) | Your TypeSafe key (`apikey_…`); from env or `typesafe-bridge/.env` |
 | `TYPESAFE_API_BASE` | bridge | `https://api.typesafe.ai` | Upstream base (protocol/host/port/path honored) |
 | `TYPESAFE_BRIDGE_PORT` | bridge | `8399` | Port the bridge listens on |
 | `TYPESAFE_BRIDGE_URL` | demo.py, e2e-live | `http://127.0.0.1:8399` | Where clients find the bridge |
 | `BRIDGE_TOKEN` | bridge + clients | unset | If set, require this exact Bearer token |
 | `BRIDGE_ALLOWED_ORIGINS` | bridge | empty | Comma-separated browser origins allowed (CORS + preflight) |
 | `BRIDGE_REDACT` | bridge | `0` | `1` = redact state before forwarding (routers bypass the CLI) |
+| `BRIDGE_ALLOW_KEY_PASSTHROUGH` | bridge | `0` | `1` = relay a client Bearer key upstream (TypeSafe-shaped keys only) |
 | `BRIDGE_MAX_BODY_BYTES` | bridge | `2097152` | Max request body size (413 above) |
 | `BRIDGE_MAX_STATE_CHARS` | bridge | `200000` | Max state characters sent upstream (413 above) |
 | `BRIDGE_LOG_LEVEL` | bridge | `info` | `error` \| `info` \| `debug` |

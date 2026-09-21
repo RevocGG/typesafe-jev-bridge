@@ -25,6 +25,7 @@ coverage/
 # Tool outputs / leftovers
 typesafe-bridge/answers*.json
 *.bak-autofix*
+*.bak-setup
 *.log
 nohup.out
 .bridge.pid

@@ -260,6 +260,10 @@ function ensureKey() {
       return Promise.reject(new Error("that does not look like a TypeSafe key (expected ts_live_… or ts_test_…). Get one at console.typesafe.ai/settings/keys"));
     }
     if (!ARGS.dryRun) {
+      // Never destroy an existing .env: back it up first (git-ignored).
+      if (fs.existsSync(ENV_FILE)) {
+        try { fs.copyFileSync(ENV_FILE, ENV_FILE + ".bak-setup"); } catch (e) { /* best effort */ }
+      }
       var body = "# Created by npm run setup — do not commit.\nTYPESAFE_API_KEY=" + key + "\n";
       fs.writeFileSync(ENV_FILE, body, { encoding: "utf8" }); // UTF-8, LF by default
       // POSIX only: on Windows chmodSync merely toggles a read-only flag that

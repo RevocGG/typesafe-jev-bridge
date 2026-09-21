@@ -87,6 +87,26 @@ test("setup --dry-run changes nothing and never needs a key", async () => {
   }
 });
 
+test("setup overwrites an existing .env only with a .bak-setup backup", async () => {
+  const dir = tempBridgeDir();
+  try {
+    fs.writeFileSync(path.join(dir, ".env"), "# my hand-written env\nTYPESAFE_API_KEY=oops-not-valid\n");
+    const r = await runCli(path.join(dir, "scripts", "setup.cjs"), ["--yes", "--key-stdin"], {
+      cwd: dir,
+      input: `${TEST_KEY}\n`,
+      env: { TYPESAFE_BRIDGE_PORT: "18499" },
+    });
+    assert.strictEqual(r.status, 0, `stderr: ${r.stderr}`);
+    assert.ok(
+      fs.readFileSync(path.join(dir, ".env.bak-setup"), "utf8").includes("oops-not-valid"),
+      "previous .env backed up"
+    );
+    assert.ok(fs.readFileSync(path.join(dir, ".env"), "utf8").includes(TEST_KEY), "new key written");
+  } finally {
+    rmRf(dir);
+  }
+});
+
 test("setup writes a UTF-8/LF .env, key never in output, idempotent second run", async () => {
   const dir = tempBridgeDir();
   try {

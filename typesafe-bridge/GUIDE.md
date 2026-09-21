@@ -30,21 +30,28 @@ The bridge translates both `POST /v1/chat/completions` **and** `POST /v1/respons
 | File | Purpose |
 | --- | --- |
 | `bridge.js` | The bridge server (port 8399, localhost only) |
-| `.env` | `TYPESAFE_API_KEY=…` — loaded automatically by the bridge. **Never commit or print this.** |
+| `.env` | `TYPESAFE_API_KEY=…` — loaded automatically by the bridge. **Never commit or print this.** See `../.env.example` |
 | `ask-jev.cjs` | CLI for asking typed questions about files / text |
 | `audit.cjs` | Jev judges every project file (security / bugs / robustness / maintainability) |
 | `autofix.cjs` | Judge → fix → re-judge loop (see below) |
-| `test-all.cjs` | End-to-end test suite for every route |
-| `demo.py` + `.venv/` | Official `typesafe-sdk` demo, direct to TypeSafe |
+| `lib/` | Shared modules: redaction, sensitive-path guard, fence extraction, HTTP client, env parser |
+| `test/` | Offline test suite (`npm test` from the repo root) — no network, no key |
+| `e2e-live.cjs` | Live end-to-end suite (real bridge, optionally 9Router; spends credits) |
+| `demo.py` + `requirements.txt` | Official `typesafe-sdk` demo, direct to TypeSafe |
 
 ## 0) Setup (once, for every path below)
 
 1. Get a TypeSafe API key at `console.typesafe.ai/settings/keys`.
-2. Create `typesafe-bridge/.env`:
+2. Create `typesafe-bridge/.env` (copy `../.env.example`):
    ```
    TYPESAFE_API_KEY=ts_live_…your key…
    ```
    (or export `TYPESAFE_API_KEY` in your shell — both work)
+
+   Windows note: create the file with Notepad or
+   `Set-Content -Encoding utf8` — **not** `echo "…" > .env`, which writes
+   UTF-16LE that the parser rejects (a UTF-16 BOM is detected and decoded, but
+   plain ASCII is safest).
 3. Node 18+ is required (`fetch` is used by the CLI tools).
 
 ---
@@ -157,20 +164,33 @@ provider node at the bridge:
 Test end-to-end (bridge + 9Router):
 
 ```bash
-node test-all.cjs                # full suite, every route
-node test-all.cjs --skip-9router # only the direct-bridge tests
+node e2e-live.cjs                # full suite against the REAL API (spends credits)
+node e2e-live.cjs --skip-9router # only the direct-bridge tests
 ```
+
+The offline suite (no network, no key) is `npm test` from the repo root.
 
 ---
 
 ## How questions are inferred (plain chat requests)
 
-- Send a `questions` map in the JSON body → passed to TypeSafe verbatim.
-- System/first-user message that is a **JSON object** → its keys become **choice**
-  options (values become the instructions). A single-key object keeps that key as
-  the answer id and asks yes/no.
-- A yes/no phrasing ("Is…", "Does…", "yes/no") → **noul** (probability of yes).
-- Otherwise → default yes/no choice.
+The bridge picks questions in this exact order:
+
+1. **Explicit `questions` map** in the JSON body → passed to TypeSafe verbatim
+   (validated: plain object, ≤ 20 entries, ids `^[A-Za-z0-9_.-]{1,64}$`,
+   `type` ∈ `noul|choice|score`; anything else → 400).
+2. **JSON object spec** in the system message, else the first user message →
+   its keys become **choice** options (string values become instructions).
+   A single-key object keeps that key as the answer id and asks yes/no.
+   Every value must be a string; otherwise the spec is ignored.
+3. **Yes/no phrasing** ("Is…", "Does…", "yes/no") in the **last user message**,
+   then the system message → **noul** (probability of yes).
+4. **Default**: a single yes/no **choice** over the last user message (or the
+   system message if there is no user text).
+
+So `demo.py`-style "Return JSON with keys: department, is_urgent" prose does
+**not** create two questions — send an explicit `questions` map instead (the
+demo now does exactly that).
 
 Answers are rendered like:
 
@@ -204,8 +224,14 @@ node autofix.cjs src/app.js --apply --max-runs 4 --min-score 2.5
 AUTOFIX_MODEL="your-chat-model" node autofix.cjs --apply
 ```
 
-Safety: dry-run by default, one-time `.bak-autofix` backup per file, `.env` never
-touched, truncated/unchanged model output is rejected.
+Safety: dry-run by default (it still **sends file content to Jev and — for
+flagged files — to your fix model**, and spends credits; use `--plan-only` for
+verdicts without any fix-model call), timestamped `.bak-autofix-…` backup per
+run, sensitive paths (`.env*`, `*.pem`, `*.key`, `id_rsa*`, …) refused even on
+the command line, truncated/unchanged/corrupt model output is rejected and
+validated (`node --check` / `py_compile` / JSON / fence balance), and a unified
+diff is printed for review. The tool's own sources and tests are excluded from
+default targets.
 
 ---
 
@@ -267,9 +293,12 @@ For agent frameworks that call OpenAI-compatible HTTP APIs directly, point them 
 
 ## Notes
 
-- The bridge listens on `127.0.0.1` only and rejects non-loopback `Host`/
-  `Origin` headers (DNS-rebinding / cross-origin protection) — but still don't
-  expose it publicly.
+- The bridge listens on `127.0.0.1` only, rejects non-loopback `Host` headers
+  (DNS-rebinding guard) and rejects browser `Origin` headers unless they are in
+  `BRIDGE_ALLOWED_ORIGINS` (comma-separated). Set `BRIDGE_TOKEN=…` to require a
+  real shared secret from clients (constant-time compared); without it, any
+  local process can use the bridge. Malformed request targets answer 400 and
+  never crash the process. Still don't expose it publicly.
 - TypeSafe errors: 401 bad key, 422 invalid question shape, 429 rate limit, 529 overloaded.
 - Direct SDK usage (bypassing the bridge) works too — see `demo.py`.
 - Official docs: `docs.typesafe.ai` — the `typesafe-ai` agent skill

@@ -45,3 +45,5 @@ Live example outputs: [`examples.html`](examples.html).
   git-ignored; never print, copy, or commit it.
 - Judgment outputs (`answers*.json`), logs, and `.venv/` are local-only and
   git-ignored.
+- `.agents/skills/` is git-ignored (local installs), while `skills-lock.json`
+  **is** committed — a fresh clone must reinstall the skill before using it.

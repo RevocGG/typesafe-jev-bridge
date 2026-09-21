@@ -1,0 +1,51 @@
+{
+  "name": "typesafe-jev-bridge",
+  "version": "0.2.0",
+  "description": "Use the TypeSafe Jev decision model (System One) anywhere: zero-dependency OpenAI-compatible bridge for 9Router, Claude Code, Cursor, Cline & any OpenAI SDK. Typed yes/no, choice & score judgments via CLI or HTTP.",
+  "license": "MIT",
+  "author": "RevocGG",
+  "private": false,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "typesafe-jev-bridge": "typesafe-bridge/bridge.js",
+    "ask-jev": "typesafe-bridge/ask-jev.cjs"
+  },
+  "scripts": {
+    "start": "node typesafe-bridge/bridge.js",
+    "test": "node --test \"typesafe-bridge/test/*.test.cjs\"",
+    "test:live": "node typesafe-bridge/e2e-live.cjs",
+    "audit": "node typesafe-bridge/audit.cjs",
+    "audit:fix": "node typesafe-bridge/autofix.cjs"
+  },
+  "files": [
+    "README.md",
+    "GUIDE.md",
+    "LICENSE",
+    "examples.html",
+    "typesafe-bridge/"
+  ],
+  "keywords": [
+    "typesafe",
+    "jev",
+    "system-one",
+    "openai-compatible",
+    "decision-model",
+    "llm",
+    "ai-router",
+    "bridge",
+    "proxy",
+    "claude-code",
+    "cursor",
+    "cline",
+    "9router"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RevocGG/typesafe-jev-bridge"
+  },
+  "bugs": "https://github.com/RevocGG/typesafe-jev-bridge/issues",
+  "homepage": "https://github.com/RevocGG/typesafe-jev-bridge#readme"
+}

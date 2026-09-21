@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main, hardening]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        node: [18, 20, 22]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Syntax check all JS/CJS
+        run: node --check typesafe-bridge/bridge.js && node --check typesafe-bridge/ask-jev.cjs && node --check typesafe-bridge/audit.cjs && node --check typesafe-bridge/autofix.cjs && node --check typesafe-bridge/e2e-live.cjs
+        shell: bash
+      - name: Compile-check demo.py
+        run: python -m py_compile typesafe-bridge/demo.py
+      - name: Run offline test suite
+        run: npm test
+        env:
+          # CI must never touch the live API or a real key.
+          TYPESAFE_API_KEY: ""
+          TYPESAFE_TEST_NO_DOTENV: "1"

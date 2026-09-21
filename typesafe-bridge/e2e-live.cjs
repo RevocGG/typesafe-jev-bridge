@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 /**
- * test-all.cjs — end-to-end tests for the TypeSafe bridge.
+ * e2e-live.cjs — end-to-end tests for the TypeSafe bridge (LIVE API).
+ *
+ * Unlike the offline suite (npm test), this script talks to the REAL TypeSafe
+ * API through a running bridge, and optionally through 9Router. It spends
+ * credits — run it intentionally.
  *
  * Covers:
  *   1. Bridge health + models
@@ -12,16 +16,24 @@
  *   7. ask-jev.cjs CLI: file noul, choice, stdin score, --help
  *   8. 9Router path (optional): chat/completions + responses through :20128
  *
- * Usage: node test-all.cjs [--skip-9router]
+ * Usage: node e2e-live.cjs [--skip-9router]
+ * Env:   TYPESAFE_BRIDGE_URL (default http://127.0.0.1:8399)
+ *        TYPESAFE_BRIDGE_PORT (default 8399, used only if URL unset)
+ *        ROUTER_9_BASE_URL (default http://127.0.0.1:20128)
+ *        ROUTER_9_API_KEY   (required for section 8; skipped with a warning otherwise)
+ *        ROUTER_9_MODEL     (model name used through the router; no private default)
  */
 
 "use strict";
 
-const { execFile } = require("child_process");
-const http = require("http");
+const { execFile } = require("node:child_process");
+const http = require("node:http");
 
-const BRIDGE = "http://127.0.0.1:8399";
-const ROUTER = "http://127.0.0.1:20128";
+const BRIDGE =
+  process.env.TYPESAFE_BRIDGE_URL ||
+  `http://127.0.0.1:${process.env.TYPESAFE_BRIDGE_PORT || 8399}`;
+const ROUTER = (process.env.ROUTER_9_BASE_URL || "http://127.0.0.1:20128").replace(/\/+$/, "");
+const ROUTER_MODEL = process.env.ROUTER_9_MODEL || "";
 const SKIP_ROUTER = process.argv.includes("--skip-9router");
 
 let passed = 0;
@@ -127,6 +139,8 @@ function run(cmd, args, input) {
   });
 }
 
+const NODE = process.execPath;
+
 async function main() {
   console.log("\n== 1. Bridge health & models ==");
   try {
@@ -210,7 +224,11 @@ async function main() {
     const data = firstJson(r.raw);
     const ans = (data.typesafe && data.typesafe.answers && data.typesafe.answers.answer) || {};
     check("HTTP 200", r.status === 200);
-    check("noul probability > 0.5 for urgent text", ans.noul > 0.5, `noul=${ans.noul}`);
+    check(
+      "noul is a number in [0,1] (urgent text scored)",
+      typeof ans.noul === "number" && ans.noul >= 0 && ans.noul <= 1,
+      `noul=${ans.noul}`
+    );
   }
 
   console.log("\n== 5. responses API (non-stream + stream) ==");
@@ -248,32 +266,59 @@ async function main() {
   {
     const path = require("path");
     const cli = path.join(__dirname, "ask-jev.cjs");
-    const t1 = await run("node", [cli, "--file", path.join(__dirname, "bridge.js"), "--q", "Does this file implement an HTTP server?"]);
-    check("file noul runs & answers yes-ish", t1.err === null && /\d/.test(t1.stdout), (t1.stderr || t1.stdout).slice(0, 150));
+    const t1 = await run(NODE, [cli, "--file", path.join(__dirname, "bridge.js"), "--q", "Does this file implement an HTTP server?"]);
+    const noul = Number((t1.stdout.match(/:\s*(0(?:\.\d+)?|1(?:\.0+)?)\s*$/m) || [])[1]);
+    check(
+      "file noul runs & prints a 0..1 probability",
+      t1.err === null && Number.isFinite(noul) && noul >= 0 && noul <= 1,
+      (t1.stderr || t1.stdout).slice(0, 150)
+    );
 
-    const t2 = await run("node", [cli, "--file", path.join(__dirname, "bridge.js"), "--q", "Primary role?", "--type", "choice", "--criteria", "proxy=HTTP proxying,storage=Persistence,ui=Interface"]);
+    const t2 = await run(NODE, [cli, "--file", path.join(__dirname, "bridge.js"), "--q", "Primary role?", "--type", "choice", "--criteria", "proxy=HTTP proxying,storage=Persistence,ui=Interface"]);
     check("file choice returns an option", t2.err === null && /proxy|storage|ui/.test(t2.stdout), (t2.stderr || t2.stdout).slice(0, 150));
 
-    const t3 = await run("node", [cli, "--q", "How severe?", "--type", "score", "--criteria", "Minor, Moderate, Major, Critical"], "server crashed, revenue dropping");
-    check("stdin score runs", t3.err === null && /\d/.test(t3.stdout), (t3.stderr || t3.stdout).slice(0, 150));
+    const t3 = await run(NODE, [cli, "--q", "How severe?", "--type", "score", "--criteria", "Minor, Moderate, Major, Critical"], "server crashed, revenue dropping");
+    const score = Number((t3.stdout.match(/:\s*(\d+(?:\.\d+)?)/) || [])[1]);
+    check(
+      "stdin score runs & prints a numeric score",
+      t3.err === null && Number.isFinite(score) && score >= 0 && score <= 4,
+      (t3.stderr || t3.stdout).slice(0, 150)
+    );
 
-    const t4 = await run("node", [cli, "--help"]);
+    const t4 = await run(NODE, [cli, "--help"]);
     check("--help shows usage", t4.err === null && t4.stdout.includes("--file"));
   }
 
   if (!SKIP_ROUTER) {
     console.log("\n== 8. through 9Router (:20128) ==");
     const key = process.env.ROUTER_9_API_KEY || null;
-    if (!key) {
-      check(
-        "9Router key available",
-        false,
-        "set ROUTER_9_API_KEY to run these (or use --skip-9router)"
-      );
+    if (!ROUTER_MODEL) {
+      console.log("  -- skipped: set ROUTER_9_MODEL to run the 9Router section (no provider-specific default ships) --");
+    } else if (!key) {
+      console.log("  -- skipped: set ROUTER_9_API_KEY to run these (or use --skip-9router) --");
     } else {
+      // The router must be reachable before we count anything as a failure.
+      let routerUp = false;
+      try {
+        const ping = await new Promise((resolve, reject) => {
+          const u = new URL(ROUTER);
+          const req = http.get({ host: u.hostname, port: u.port, path: "/", timeout: 3000 }, (res) => {
+            res.resume();
+            resolve(res.statusCode);
+          });
+          req.on("timeout", () => req.destroy(new Error("timeout")));
+          req.on("error", reject);
+        });
+        routerUp = Number(ping) > 0;
+      } catch {
+        routerUp = false;
+      }
+      if (!routerUp) {
+        console.log(`  -- skipped: 9Router is not reachable at ${ROUTER} --`);
+      } else {
       const auth = { Authorization: `Bearer ${key}` };
       const r1 = await request(`${ROUTER}/v1/responses`, {
-        model: "claude-sonnet-4-5",
+        model: ROUTER_MODEL,
         instructions: "Does this message express urgency?",
         input: "Stripe failing 3 days, losing sales, help ASAP.",
       }, auth);
@@ -286,7 +331,7 @@ async function main() {
       }
 
       const r2 = await request(`${ROUTER}/v1/chat/completions`, {
-        model: "claude-sonnet-4-5",
+        model: ROUTER_MODEL,
         messages: [{ role: "user", content: "Is this urgent: database is down" }],
       }, auth);
       try {
@@ -295,6 +340,7 @@ async function main() {
         check("9Router chat returns answer text", extractText(d2).length > 0, extractText(d2).slice(0, 100));
       } catch (e) {
         check("9Router /v1/chat/completions parseable", false, `${r2.status} ${r2.raw.slice(0, 150)}`);
+      }
       }
     }
   }

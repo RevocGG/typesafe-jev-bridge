@@ -6,6 +6,17 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added (post-0.2.0)
+- One-command guided setup (`npm run setup`) with preflight checks, hidden API-key
+  input, optional Python/9Router detection, background start (`--background`),
+  offline smoke test, optional `--live-check`, and a final summary screen.
+- `npm run doctor` — read-only health checklist (`--json` for machines).
+- `npm run stop` — gracefully stops a background bridge via `.bridge.pid`.
+- Startup banner and a request log line (method, path, status, latency, tokens)
+  on every bridge start; colors honor `NO_COLOR`, `--no-color` and non-TTY.
+- setup backs up an existing `.env` to `.env.bak-setup` before rewriting.
+- `test/setup-doctor.test.cjs` — offline tests for the setup/doctor flow.
+
 ### Hardening (the `hardening` branch)
 
 #### Added

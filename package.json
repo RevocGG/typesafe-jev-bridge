@@ -18,7 +18,7 @@
     "start": "node typesafe-bridge/bridge.js",
     "stop": "node typesafe-bridge/scripts/stop.cjs",
     "doctor": "node typesafe-bridge/scripts/doctor.cjs",
-    "test": "node --test \"typesafe-bridge/test/*.test.cjs\"",
+    "test": "node typesafe-bridge/scripts/run-tests.cjs",
     "test:live": "node typesafe-bridge/e2e-live.cjs",
     "audit": "node typesafe-bridge/audit.cjs",
     "audit:fix": "node typesafe-bridge/autofix.cjs"

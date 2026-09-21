@@ -102,12 +102,28 @@ const MODELS_LIST = {
 
 // ---------------------------------------------------------------- helpers ---
 
+const ui = require("./lib/ui.cjs");
+
 function log(...args) {
   if (LOG_LEVEL === "error") return;
   console.log(`[${new Date().toISOString()}]`, ...args);
 }
 function logError(...args) {
   console.error(`[${new Date().toISOString()}]`, ...args);
+}
+
+/** One line per request: method, path, status, latency, tokens — nothing else. */
+function logRequest(req, route, status, startedMs, usage) {
+  if (LOG_LEVEL === "error") return;
+  if (route === "/health") return; // health polls would drown the log
+  const ms = Date.now() - startedMs;
+  const tokens = usage && (usage.input_tokens || usage.output_tokens)
+    ? `  in ${usage.input_tokens || 0} / out ${usage.output_tokens || 0} tokens`
+    : "";
+  const line = `${new Date().toLocaleTimeString()}  ${req.method} ${route}  ${status}  ${ms}ms${tokens}`;
+  if (status >= 500) console.error(ui.red(line));
+  else if (status >= 400) console.log(ui.yellow(line));
+  else console.log(line);
 }
 
 function sendJson(res, status, body, extraHeaders) {
@@ -547,9 +563,18 @@ function responsesInputToMessages(body) {
   return messages;
 }
 
-// ----------------------------------------------------------------- server ---
+/** Best-effort route for the request log — never throws. */
+function safeRoute(req) {
+  try {
+    return new URL(req.url, `http://localhost:${PORT}`).pathname.replace(/\/+$/, "") || "/";
+  } catch {
+    return "<bad-target>";
+  }
+}
 
 async function handleRequest(req, res) {
+  const startedAt = Date.now();
+  res.on("finish", () => logRequest(req, safeRoute(req), res.statusCode, startedAt, res.locals && res.locals.usage));
   // NOTE: `route` (not `path`) — the old code shadowed the path module.
   let route;
   try {
@@ -756,6 +781,7 @@ async function handleChatCompletions(req, res, cors) {
   }
 
   const usage = (result && result.usage) || {};
+  res.locals = { ...(res.locals || {}), usage };
   return sendJson(
     res,
     200,
@@ -873,6 +899,7 @@ async function handleResponses(req, res, cors) {
     return res.end();
   }
 
+  res.locals = { ...(res.locals || {}), usage };
   return sendJson(res, 200, full, extra);
 }
 
@@ -941,4 +968,28 @@ server.listen(PORT, "127.0.0.1", () => {
   log(`Upstream: ${UPSTREAM.protocol}//${UPSTREAM.hostname}:${UPSTREAM.port}${UPSTREAM.basePath}/v1/systemone`);
   log(`Env key: ${process.env.TYPESAFE_API_KEY ? `set (from ${envInfo.from}${envInfo.encoding === "utf16le" ? ", .env was UTF-16LE — converted" : ""})` : "NOT set (pass a ts_live_/ts_test_ key as Bearer token)"}`);
   log(`Auth: ${BRIDGE_TOKEN ? "BRIDGE_TOKEN required" : "open (set BRIDGE_TOKEN to require a token)"}, redact=${BRIDGE_REDACT ? "on" : "off"}, origins: ${ALLOWED_ORIGINS.length ? ALLOWED_ORIGINS.join(", ") : "none (browser origins rejected)"}`);
+
+  // ---- human-facing startup banner (plain when not a TTY / NO_COLOR) ------
+  const keyLoaded = Boolean(process.env.TYPESAFE_API_KEY);
+  const out = [];
+  out.push("");
+  out.push(`  ${ui.bold(`typesafe-jev-bridge v${VERSION}`)}`);
+  out.push(`  ${ui.ok(`Bridge running     http://127.0.0.1:${PORT}/v1`)}`);
+  out.push(
+    keyLoaded
+      ? `  ${ui.ok(`TypeSafe API key   loaded from ${envInfo.from}`)}`
+      : `  ${ui.fail("TypeSafe API key   NOT set — calls will fail until you add one to .env")}`
+  );
+  out.push(`  ${ui.dim(`Upstream           ${UPSTREAM.protocol}//${UPSTREAM.hostname}${UPSTREAM.basePath}`)}`);
+  out.push(`  ${ui.dim(`Models             ${MODELS_LIST.data.map((m) => m.id).join(", ")}`)}`);
+  out.push("");
+  out.push("  Use it from any OpenAI-compatible tool:");
+  out.push(`    Base URL   http://127.0.0.1:${PORT}/v1`);
+  out.push(`    API key    ${PLACEHOLDER_KEY}${BRIDGE_TOKEN ? "  (or your BRIDGE_TOKEN)" : ""}`);
+  out.push("    Model      typesafe/jev-latest");
+  out.push("");
+  out.push(`  Try it:   node typesafe-bridge/ask-jev.cjs --text "Server is down" --q "Is this urgent?"`);
+  out.push("  Check:    npm run doctor        Stop:  Ctrl+C  (or npm run stop if in background)");
+  out.push("");
+  console.log(out.join("\n"));
 });

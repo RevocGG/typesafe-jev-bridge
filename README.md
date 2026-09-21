@@ -102,41 +102,64 @@ repo and the fixes its verdicts triggered: [`examples.html`](examples.html)
   route coding tasks to Jev: the bridge infers a yes/no question → Jev answers
   "yes". That's by design, not a bug.
 
-## Quickstart
+## Quickstart — three commands
 
-**1) Get a key** at `console.typesafe.ai/keys`, then create `typesafe-bridge/.env`
-(copy the provided [`.env.example`](.env.example)):
-
-```bash
-# bash / macOS / Linux
-cp .env.example typesafe-bridge/.env && nano typesafe-bridge/.env
-```
-
-```powershell
-# Windows PowerShell (NOT "echo > .env" — that writes UTF-16 which the parser rejects)
-Copy-Item .env.example typesafe-bridge/.env
-notepad typesafe-bridge\.env
-```
-
-Then start the bridge:
+Prerequisite: **Node 18+** and a TypeSafe API key from `console.typesafe.ai/keys`.
+That's all — Jev is a hosted API.
 
 ```bash
-cd typesafe-bridge
-node bridge.js          # keep it running (localhost only)
+git clone https://github.com/RevocGG/typesafe-jev-bridge.git
+cd typesafe-jev-bridge
+npm run setup          # asks for your key (hidden), starts & smoke-tests the bridge
 ```
+
+What you'll see while it runs:
+
+```text
+  typesafe-jev-bridge v0.2.0
+  ✓ Bridge running     http://127.0.0.1:8399/v1
+  ✓ TypeSafe API key   loaded from .env
+  Upstream             https://api.typesafe.ai
+  Models               typesafe/jev-latest, typesafe/jev-preview
+
+  Use it from any OpenAI-compatible tool:
+    Base URL   http://127.0.0.1:8399/v1
+    API key    sk-typesafe-bridge
+    Model      typesafe/jev-latest
+
+  Try it:   node typesafe-bridge/ask-jev.cjs --text "Server is down" --q "Is this urgent?"
+  Check:    npm run doctor        Stop:  Ctrl+C  (or npm run stop if in background)
+
+  12:04:31  POST /v1/chat/completions  200  412ms  in 352 / out 44 tokens
+```
+
+Then try it:
+
+```bash
+node typesafe-bridge/ask-jev.cjs --text "Server is down" --q "Is this urgent?"
+# → Is this urgent?: 0.94  -> YES (confident)
+```
+
+Handy commands:
+
+| Command | What it does |
+| --- | --- |
+| `npm start` | run the bridge in the foreground (with the banner above) |
+| `npm run setup -- --background` | start it detached (`.bridge.pid` + `bridge.log`) |
+| `npm run stop` | stop the background bridge |
+| `npm run doctor` | read-only health checklist with fix hints |
+| `npm test` | offline test suite (no network, no key) |
+| `npm run test:live` | live end-to-end suite (spends credits) |
 
 <details>
-<summary>Keep it running in the background</summary>
+<summary>Prefer the manual path (no setup script)?</summary>
 
-```bash
-# bash / macOS / Linux
-nohup node bridge.js > bridge.log 2>&1 &
-```
-
-```powershell
-# Windows: Start-Process keeps it alive after the terminal closes
-Start-Process -WindowStyle Hidden node -ArgumentList "bridge.js" -WorkingDirectory typesafe-bridge
-```
+1. Copy [`.env.example`](.env.example) to `typesafe-bridge/.env` and add your key.
+   In PowerShell use `Copy-Item` (never `echo > .env`, which writes UTF-16).
+2. `cd typesafe-bridge && node bridge.js`
+3. Nothing is installed anywhere: no global packages, no PATH changes, no
+   background services. Python and 9Router are entirely optional and never
+   installed by `npm run setup`.
 </details>
 
 **2a) Without 9Router** — use the CLI or any OpenAI client directly:
@@ -206,7 +229,8 @@ confidence, and score levels. This repo's own agent notes live in
 | `typesafe-bridge/ask-jev.cjs` | CLI: typed questions about files, directories, or stdin |
 | `typesafe-bridge/audit.cjs` | Jev judges every file (security / bugs / robustness / docs) |
 | `typesafe-bridge/autofix.cjs` | Judge → fix → re-judge loop (dry-run by default, backups, model fallback chain) |
-| `typesafe-bridge/lib/` | Shared modules: redaction, sensitive-path guard, fence extraction, HTTP client, env parser |
+| `typesafe-bridge/lib/` | Shared modules: redaction, sensitive-path guard, fence extraction, HTTP client, env parser, terminal UI |
+| `typesafe-bridge/scripts/` | `setup` (guided installer), `doctor` (health checklist), `stop` |
 | `typesafe-bridge/test/` | Offline test suite (`npm test`) — no network, no key needed |
 | `typesafe-bridge/e2e-live.cjs` | Live end-to-end suite against a real bridge (and optionally 9Router) |
 | `typesafe-bridge/demo.py` | Official `typesafe-sdk` demo (direct, no bridge) |

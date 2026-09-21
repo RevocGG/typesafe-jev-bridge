@@ -41,6 +41,52 @@ The bridge translates both `POST /v1/chat/completions` **and** `POST /v1/respons
 
 ## 0) Setup (once, for every path below)
 
+### The easy way: `npm run setup`
+
+From the repo root:
+
+```bash
+npm run setup
+```
+
+The installer checks prerequisites, asks for your key with **hidden input**,
+writes `typesafe-bridge/.env` (UTF-8, LF, chmod 600 on macOS/Linux) and
+smoke-tests the bridge. Idempotent — re-running it is safe and skips what is
+already done. It never installs anything global, never touches your PATH, and
+never prints (or stores anywhere but `.env`) your key.
+
+Flags:
+
+| Flag | Effect |
+| --- | --- |
+| `--dry-run` | print the planned actions, change nothing |
+| `--yes` | accept defaults, never prompt |
+| `--key-stdin` | read the key from stdin (one line) — for scripts/CI |
+| `--background` | start the bridge detached, write `.bridge.pid` + `bridge.log` |
+| `--with-python` | ALSO set up the optional demo (needs Python ≥ 3.9; creates `.venv`, pip-installs `requirements.txt`) |
+| `--live-check` | send ONE short fixed sentence to the real API (a few tokens) after asking |
+| `--port N` | bridge port (default `8399` / `TYPESAFE_BRIDGE_PORT`; busy ports auto-advance) |
+| `--no-color` | disable ANSI colors |
+
+Python and 9Router are **optional** and are never installed automatically.
+
+### `npm run doctor`
+
+A read-only checklist (`✓ / ! / ✗`, one fix hint per problem): Node version,
+`.env` presence/encoding/key shape/permissions/git-tracking, port state, bridge
+`/health` + `/v1/models`, version match between the running bridge and the
+files, `BRIDGE_TOKEN` / `BRIDGE_ALLOWED_ORIGINS` sanity, optional 9Router and
+Python detection, `.gitignore` coverage. Exit 1 when any check fails; `--json`
+for machine-readable output.
+
+### `npm run stop`
+
+Stops a bridge started with `--background`: reads `.bridge.pid`, verifies the
+recorded process still answers `/health` (so it never kills an unrelated
+process), terminates it gracefully and removes the pid file.
+
+### The manual path
+
 1. Get a TypeSafe API key at `console.typesafe.ai/settings/keys`.
 2. Create `typesafe-bridge/.env` (copy `../.env.example`):
    ```

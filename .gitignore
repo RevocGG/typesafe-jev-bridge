@@ -27,3 +27,4 @@ typesafe-bridge/answers*.json
 *.bak-autofix*
 *.log
 nohup.out
+.bridge.pid
